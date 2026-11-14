@@ -21,6 +21,7 @@ import {
   createFirestoreList,
   deleteFirestoreList,
   subscribeShoppingItems,
+  leaveSharedList,
 } from '@/lib/firestore';
 
 export default function ListsScreen() {
@@ -41,6 +42,7 @@ export default function ListsScreen() {
     setLoading(true);
     const unsubLists = subscribeShoppingLists(
       firebaseUser.uid,
+      firebaseUser.email,
       (fetchedLists) => {
         setLists(fetchedLists);
         setLoading(false);
@@ -65,7 +67,12 @@ export default function ListsScreen() {
     if (!newListName.trim() || !firebaseUser) return;
     setCreating(true);
     try {
-      const listId = await createFirestoreList(firebaseUser.uid, newListName, newListDesc);
+      const listId = await createFirestoreList(
+        firebaseUser.uid,
+        firebaseUser.email,
+        newListName,
+        newListDesc
+      );
       setNewListName('');
       setNewListDesc('');
       setModalVisible(false);
@@ -91,6 +98,32 @@ export default function ListsScreen() {
           { text: 'Delete', style: 'destructive', onPress: () => handleDeleteList(list.id) },
         ]
       );
+    }
+  };
+
+  const confirmLeave = (list: ShoppingList) => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Leave list "${list.name}"? It will no longer appear in your lists.`)) {
+        handleLeaveList(list.id);
+      }
+    } else {
+      Alert.alert(
+        'Leave List',
+        `Are you sure you want to leave "${list.name}"?`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Leave', style: 'destructive', onPress: () => handleLeaveList(list.id) },
+        ]
+      );
+    }
+  };
+
+  const handleLeaveList = async (id: string) => {
+    if (!firebaseUser?.email) return;
+    try {
+      await leaveSharedList(id, firebaseUser.uid, firebaseUser.email);
+    } catch (err) {
+      console.error('Failed to leave list', err);
     }
   };
 
@@ -130,6 +163,8 @@ export default function ListsScreen() {
     const completed = items.filter((i) => i.isChecked).length;
     const progress = total > 0 ? (completed / total) * 100 : 0;
     const isAllDone = total > 0 && completed === total;
+    const isOwner = item.ownerId === firebaseUser?.uid;
+    const memberCount = item.memberEmails?.length || 1;
 
     return (
       <Card
@@ -138,12 +173,26 @@ export default function ListsScreen() {
       >
         <View className="flex-row items-center justify-between mb-3">
           <View className="flex-1 mr-3">
-            <View className="flex-row items-center">
-              <Text className="text-white text-lg font-bold tracking-tight mr-2.5">
+            <View className="flex-row items-center flex-wrap gap-1.5">
+              <Text className="text-white text-lg font-bold tracking-tight mr-1">
                 {item.name}
               </Text>
               {isAllDone && (
                 <Badge label="Completed" variant="success" size="sm" />
+              )}
+              {!isOwner && (
+                <Badge
+                  label={`Shared by ${item.ownerEmail || 'owner'}`}
+                  variant="neutral"
+                  size="sm"
+                />
+              )}
+              {isOwner && memberCount > 1 && (
+                <Badge
+                  label={`Shared (${memberCount - 1})`}
+                  variant="info"
+                  size="sm"
+                />
               )}
             </View>
             {item.description ? (
@@ -156,11 +205,19 @@ export default function ListsScreen() {
             hitSlop={12}
             onPress={(e) => {
               e.stopPropagation();
-              confirmDelete(item);
+              if (isOwner) {
+                confirmDelete(item);
+              } else {
+                confirmLeave(item);
+              }
             }}
             className="p-2 rounded-xl hover:bg-slate-800 active:bg-slate-700 transition-colors"
           >
-            <Ionicons name="trash-outline" size={17} color="#94A3B8" />
+            <Ionicons
+              name={isOwner ? 'trash-outline' : 'log-out-outline'}
+              size={17}
+              color={isOwner ? '#94A3B8' : '#FB7185'}
+            />
           </Pressable>
         </View>
 

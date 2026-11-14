@@ -2,22 +2,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can only read/write their own profile
+    // Authenticated users can read profiles (needed to look up users by email); users can only write their own profile
     match /users/{uid} {
-      allow read, write: if request.auth != null && request.auth.uid == uid;
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Shopping lists: owner or any member can read/write
+    // Shopping lists: owner or member can read/write, only owner can delete
     match /shopping_lists/{listId} {
-      allow read, write: if request.auth != null && (
+      allow read: if request.auth != null && (
         request.auth.uid == resource.data.ownerId ||
-        request.auth.uid in resource.data.memberIds
+        (resource.data.memberIds != null && request.auth.uid in resource.data.memberIds) ||
+        (resource.data.memberEmails != null && request.auth.token.email != null && request.auth.token.email.lower() in resource.data.memberEmails)
+      );
+      allow update: if request.auth != null && (
+        request.auth.uid == resource.data.ownerId ||
+        (resource.data.memberIds != null && request.auth.uid in resource.data.memberIds) ||
+        (resource.data.memberEmails != null && request.auth.token.email != null && request.auth.token.email.lower() in resource.data.memberEmails)
       );
       allow create: if request.auth != null &&
         request.auth.uid == request.resource.data.ownerId;
+      allow delete: if request.auth != null &&
+        request.auth.uid == resource.data.ownerId;
     }
 
-    // Shopping items: any authenticated user with access to the parent list
+    // Shopping items: any authenticated user
     match /shopping_items/{itemId} {
       allow read, write: if request.auth != null;
     }

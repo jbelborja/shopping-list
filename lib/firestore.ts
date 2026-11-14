@@ -12,6 +12,9 @@ import {
   deleteDoc,
   writeBatch,
   onSnapshot,
+  arrayUnion,
+  arrayRemove,
+  limit,
   CollectionReference,
   DocumentReference,
 } from 'firebase/firestore';
@@ -28,55 +31,116 @@ export const shoppingListDoc = (id: string) => doc(db, 'shopping_lists', id);
 export const shoppingItemsCollection = collection(db, 'shopping_items');
 export const shoppingItemDoc = (id: string) => doc(db, 'shopping_items', id);
 
+function parseListDoc(d: { id: string; data: () => any }): ShoppingList {
+  const data = d.data();
+  return {
+    id: d.id,
+    name: data.name || '',
+    description: data.description,
+    ownerId: data.ownerId || '',
+    ownerEmail: data.ownerEmail,
+    memberIds: data.memberIds || [],
+    memberEmails: data.memberEmails || [],
+    color: data.color || '#6366F1',
+    createdAt: data.createdAt || Date.now(),
+    updatedAt: data.updatedAt || Date.now(),
+  };
+}
+
 // Realtime subscription for shopping lists owned by or shared with user
 export function subscribeShoppingLists(
   userId: string,
+  userEmail: string | null | undefined,
   onUpdate: (lists: ShoppingList[]) => void,
   onError?: (err: Error) => void
 ) {
-  const q = query(
+  const ownedMap = new Map<string, ShoppingList>();
+  const sharedMap = new Map<string, ShoppingList>();
+
+  const emit = () => {
+    const combined = new Map<string, ShoppingList>();
+    // Add owned lists
+    ownedMap.forEach((l, id) => combined.set(id, l));
+    // Add shared lists
+    sharedMap.forEach((l, id) => combined.set(id, l));
+
+    const sorted = Array.from(combined.values()).sort(
+      (a, b) => (b.createdAt || 0) - (a.createdAt || 0)
+    );
+    onUpdate(sorted);
+  };
+
+  // 1. Listen for lists owned by userId
+  const qOwned = query(
     shoppingListsCollection,
     where('ownerId', '==', userId),
     orderBy('createdAt', 'desc')
   );
 
-  return onSnapshot(
-    q,
+  const unsubOwned = onSnapshot(
+    qOwned,
     (snapshot) => {
-      const lists: ShoppingList[] = [];
+      ownedMap.clear();
       snapshot.forEach((d) => {
-        const data = d.data();
-        lists.push({
-          id: d.id,
-          name: data.name || '',
-          description: data.description,
-          ownerId: data.ownerId || userId,
-          memberIds: data.memberIds || [],
-          color: data.color || '#E94560',
-          createdAt: data.createdAt || Date.now(),
-          updatedAt: data.updatedAt || Date.now(),
-        });
+        ownedMap.set(d.id, parseListDoc(d));
       });
-      onUpdate(lists);
+      emit();
     },
-    (error) => {
-      console.warn('subscribeShoppingLists error:', error);
-      onError?.(error);
+    (err) => {
+      console.warn('subscribeShoppingLists owned error:', err);
+      onError?.(err);
     }
   );
+
+  // 2. If userEmail is provided, also listen for lists where memberEmails contains userEmail
+  let unsubShared = () => {};
+  const normalizedEmail = userEmail ? userEmail.trim().toLowerCase() : null;
+
+  if (normalizedEmail) {
+    const qShared = query(
+      shoppingListsCollection,
+      where('memberEmails', 'array-contains', normalizedEmail)
+    );
+
+    unsubShared = onSnapshot(
+      qShared,
+      (snapshot) => {
+        sharedMap.clear();
+        snapshot.forEach((d) => {
+          sharedMap.set(d.id, parseListDoc(d));
+        });
+        emit();
+      },
+      (err) => {
+        console.warn('subscribeShoppingLists shared error:', err);
+        // Non-blocking for owned lists
+      }
+    );
+  }
+
+  return () => {
+    unsubOwned();
+    unsubShared();
+  };
 }
 
 export async function createFirestoreList(
   userId: string,
+  userEmail: string | null | undefined,
   name: string,
   description?: string
 ): Promise<string> {
+  const emailNorm = userEmail ? userEmail.trim().toLowerCase() : '';
+  const memberEmails = emailNorm ? [emailNorm] : [];
+
   const docRef = await addDoc(shoppingListsCollection, {
     name: name.trim(),
     description: description?.trim() || '',
     ownerId: userId,
+    ownerEmail: emailNorm,
     memberIds: [userId],
-    color: '#E94560',
+    memberEmails,
+    color: '#6366F1',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   });
@@ -179,4 +243,84 @@ export async function clearCompletedFirestoreListItems(listId: string): Promise<
     batch.delete(d.ref);
   });
   await batch.commit();
+}
+
+// Share list with a user by email
+export async function shareListWithEmail(
+  listId: string,
+  targetEmail: string
+): Promise<{ success: boolean; message: string }> {
+  const emailNorm = targetEmail.trim().toLowerCase();
+  if (!emailNorm || !emailNorm.includes('@')) {
+    throw new Error('Please enter a valid email address.');
+  }
+
+  // Get current list document to verify state
+  const listSnap = await getDoc(shoppingListDoc(listId));
+  if (!listSnap.exists()) {
+    throw new Error('List not found.');
+  }
+  const data = listSnap.data();
+  const currentEmails: string[] = data.memberEmails || [];
+  if (currentEmails.map((e) => e.toLowerCase()).includes(emailNorm)) {
+    return { success: true, message: 'This user is already a member.' };
+  }
+
+  // Search if user exists in registered users collection
+  const qUser = query(usersCollection, where('email', '==', emailNorm), limit(1));
+  const userSnap = await getDocs(qUser);
+  const matchedUid = !userSnap.empty ? userSnap.docs[0].id : null;
+
+  const updateData: Record<string, any> = {
+    memberEmails: arrayUnion(emailNorm),
+    updatedAt: Date.now(),
+  };
+
+  if (matchedUid) {
+    updateData.memberIds = arrayUnion(matchedUid);
+  }
+
+  await updateDoc(shoppingListDoc(listId), updateData);
+  return {
+    success: true,
+    message: matchedUid
+      ? `List shared with ${emailNorm}.`
+      : `List shared with ${emailNorm}. They will see this list when they sign in.`,
+  };
+}
+
+// Remove member from list (by owner)
+export async function removeMemberFromList(
+  listId: string,
+  targetEmail: string
+): Promise<void> {
+  const emailNorm = targetEmail.trim().toLowerCase();
+  const qUser = query(usersCollection, where('email', '==', emailNorm), limit(1));
+  const userSnap = await getDocs(qUser);
+  const matchedUid = !userSnap.empty ? userSnap.docs[0].id : null;
+
+  const updateData: Record<string, any> = {
+    memberEmails: arrayRemove(emailNorm),
+    updatedAt: Date.now(),
+  };
+
+  if (matchedUid) {
+    updateData.memberIds = arrayRemove(matchedUid);
+  }
+
+  await updateDoc(shoppingListDoc(listId), updateData);
+}
+
+// Leave a shared list (by member)
+export async function leaveSharedList(
+  listId: string,
+  userId: string,
+  userEmail: string
+): Promise<void> {
+  const emailNorm = userEmail.trim().toLowerCase();
+  await updateDoc(shoppingListDoc(listId), {
+    memberIds: arrayRemove(userId),
+    memberEmails: arrayRemove(emailNorm),
+    updatedAt: Date.now(),
+  });
 }

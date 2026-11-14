@@ -31,7 +31,9 @@ export interface ShoppingList {
   name: string;
   description?: string;
   ownerId: string;
+  ownerEmail?: string;
   memberIds?: string[];
+  memberEmails?: string[];
   color?: string;
   createdAt: number;
   updatedAt: number;

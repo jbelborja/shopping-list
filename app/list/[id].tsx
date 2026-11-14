@@ -25,14 +25,19 @@ import {
 } from '@/lib/firestore';
 import { onSnapshot } from 'firebase/firestore';
 
+import { useAuth } from '@/hooks/useAuth';
+import { ShareListModal } from '@/components/ShareListModal';
+
 export default function ListDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { firebaseUser } = useAuth();
 
   const [currentList, setCurrentList] = useState<ShoppingList | null>(null);
   const [items, setItems] = useState<ShoppingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterCategory, setFilterCategory] = useState<Category | 'All'>('All');
+  const [shareModalVisible, setShareModalVisible] = useState(false);
 
   // Add Item Modal
   const [modalVisible, setModalVisible] = useState(false);
@@ -55,7 +60,9 @@ export default function ListDetailScreen() {
           name: data.name || '',
           description: data.description,
           ownerId: data.ownerId,
-          memberIds: data.memberIds,
+          ownerEmail: data.ownerEmail,
+          memberIds: data.memberIds || [],
+          memberEmails: data.memberEmails || [],
           color: data.color || '#6366F1',
           createdAt: data.createdAt || Date.now(),
           updatedAt: data.updatedAt || Date.now(),
@@ -156,13 +163,28 @@ export default function ListDetailScreen() {
           </View>
 
           <View className="flex-row items-center space-x-2">
+            <Pressable
+              onPress={() => setShareModalVisible(true)}
+              className="flex-row items-center px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 active:bg-slate-700"
+            >
+              <Ionicons name="people-outline" size={16} color="#818CF8" />
+              <Text className="text-xs font-semibold text-slate-200 ml-1.5">Share</Text>
+              {(currentList?.memberEmails?.length || 0) > 1 && (
+                <View className="ml-1.5 px-1.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30">
+                  <Text className="text-[10px] font-bold text-indigo-400">
+                    {currentList?.memberEmails?.length}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+
             {completedCount > 0 && (
               <Button
                 title="Clear checked"
                 onPress={handleClearCompleted}
                 variant="ghost"
                 size="sm"
-                className="mr-2 text-slate-400"
+                className="text-slate-400"
               />
             )}
             <Button
@@ -445,6 +467,16 @@ export default function ListDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Share List Modal */}
+      <ShareListModal
+        visible={shareModalVisible}
+        onClose={() => setShareModalVisible(false)}
+        list={currentList}
+        currentUserId={firebaseUser?.uid || ''}
+        currentUserEmail={firebaseUser?.email || ''}
+        onListLeft={() => router.replace('/')}
+      />
     </SafeAreaView>
   );
 }
