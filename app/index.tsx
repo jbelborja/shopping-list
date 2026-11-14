@@ -188,7 +188,7 @@ export default function ListsScreen() {
               {!isOwner && (
                 <Badge
                   label={t('lists.sharedWithMe', { owner: item.ownerEmail || 'colaborador' })}
-                  variant="neutral"
+                  variant="default"
                   size="sm"
                 />
               )}

@@ -11,6 +11,7 @@ const INITIAL_LISTS: ShoppingList[] = [
     name: 'Weekly Groceries',
     description: 'Essentials for this week',
     color: '#E94560',
+    ownerId: 'local',
     createdAt: Date.now() - 1000 * 60 * 60 * 24 * 2,
     updatedAt: Date.now(),
   },
@@ -19,6 +20,7 @@ const INITIAL_LISTS: ShoppingList[] = [
     name: 'Weekend BBQ & Party',
     description: 'Drinks, snacks and BBQ ingredients',
     color: '#3B82F6',
+    ownerId: 'local',
     createdAt: Date.now() - 1000 * 60 * 60 * 24,
     updatedAt: Date.now(),
   },
@@ -94,6 +96,7 @@ export async function createList(name: string, description?: string): Promise<Sh
     name: name.trim(),
     description: description?.trim() || undefined,
     color: '#E94560',
+    ownerId: 'local',
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };

@@ -66,20 +66,30 @@ jobs:
             "client": [
               {
                 "client_info": {
-                  "mobilesdk_app_id": "1:168502063525:android:dummy",
+                  "mobilesdk_app_id": "1:168502063525:android:com.jbelborja.shoppinglist",
                   "android_client_info": {
                     "package_name": "com.jbelborja.shoppinglist"
                   }
                 },
-                "oauth_client": [],
+                "oauth_client": [
+                  {
+                    "client_id": "168502063525-uu17f8mqq7mv9h6b9scpqu0h00i9glmq.apps.googleusercontent.com",
+                    "client_type": 3
+                  }
+                ],
                 "api_key": [
                   {
-                    "current_key": "dummy-api-key"
+                    "current_key": "AIzaSyBfRIaDXen2D2NYvnwyENoZFF9aUEQGy9Q"
                   }
                 ],
                 "services": {
                   "appinvite_service": {
-                    "other_platform_oauth_client": []
+                    "other_platform_oauth_client": [
+                      {
+                        "client_id": "168502063525-uu17f8mqq7mv9h6b9scpqu0h00i9glmq.apps.googleusercontent.com",
+                        "client_type": 3
+                      }
+                    ]
                   }
                 }
               }

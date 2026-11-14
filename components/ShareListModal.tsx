@@ -312,7 +312,7 @@ export function ShareListModal({
                             )}
                           </Pressable>
                         ) : (
-                          <Badge label={t('share.memberBadge')} variant="neutral" size="sm" />
+                          <Badge label={t('share.memberBadge')} variant="default" size="sm" />
                         )}
                       </View>
                     </View>
@@ -329,7 +329,7 @@ export function ShareListModal({
                 title={t('share.leaveButton')}
                 variant="danger"
                 size="sm"
-                icon="log-out-outline"
+                leftIcon={<Ionicons name="log-out-outline" size={16} color="#FFFFFF" />}
                 onPress={confirmLeave}
               />
             ) : (

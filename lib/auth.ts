@@ -1,16 +1,14 @@
 import { useState } from 'react';
-import { Platform } from 'react-native';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
-  GoogleAuthProvider,
-  signInWithPopup,
   User as FirebaseUser,
 } from 'firebase/auth';
 import { auth } from './firebase';
 import { setDoc, userDoc } from './firestore';
+import { promptGoogleSignIn, isGoogleCancellation } from './googleAuth';
 import { User } from '@/types';
 
 export function formatAuthError(err: unknown): string {
@@ -45,6 +43,12 @@ export function formatAuthError(err: unknown): string {
   }
   if (code === 'auth/popup-closed-by-user') {
     return 'Sign in was cancelled.';
+  }
+  if (code === '10' || code === 'DEVELOPER_ERROR') {
+    return 'Google Sign-In configuration error (Developer Error 10). Ensure the SHA-1 fingerprint is added to Firebase Console.';
+  }
+  if (code === '7' || code === 'NETWORK_ERROR') {
+    return 'Network error connecting to Google Play services. Please check your internet connection.';
   }
   return err.message.replace(/^Firebase:\s*(Error\s*)?/, '').replace(/\s*\(auth\/[^)]+\)\.?$/, '');
 }
@@ -110,18 +114,14 @@ export function useGoogleAuth() {
     setError(null);
     setLoading(true);
     try {
-      if (Platform.OS === 'web') {
-        const provider = new GoogleAuthProvider();
-        provider.setCustomParameters({ prompt: 'select_account' });
-        const result = await signInWithPopup(auth, provider);
-        await syncUserDocument(result.user);
-        return result.user;
-      } else {
-        throw new Error('Google Sign-In on native requires native Google Play services configuration.');
+      const user = await promptGoogleSignIn();
+      if (!user) {
+        return null;
       }
+      await syncUserDocument(user);
+      return user;
     } catch (err: unknown) {
-      const code = (err as any)?.code;
-      if (code === 'auth/popup-closed-by-user') {
+      if (isGoogleCancellation(err)) {
         return null;
       }
       const msg = formatAuthError(err);

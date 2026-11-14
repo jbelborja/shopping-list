@@ -21,6 +21,9 @@ import {
 import { db } from './firebase';
 import { ShoppingList, ShoppingItem, User } from '@/types';
 
+// Re-export setDoc for auth/sync helpers
+export { setDoc };
+
 // Collections
 export const usersCollection = collection(db, 'users') as CollectionReference<User>;
 export const userDoc = (uid: string) => doc(db, 'users', uid) as DocumentReference<User>;

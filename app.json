@@ -15,14 +15,16 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.jbelborja.shoppinglist"
+      "bundleIdentifier": "com.jbelborja.shoppinglist",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#020617"
       },
-      "package": "com.jbelborja.shoppinglist"
+      "package": "com.jbelborja.shoppinglist",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "bundler": "metro",
@@ -33,7 +35,8 @@
       "baseUrl": "/shopping-list"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      "@react-native-google-signin/google-signin"
     ]
   }
 }
