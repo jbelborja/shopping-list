@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   Modal,
   TextInput,
   ScrollView,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -16,14 +15,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { ShoppingItem, ShoppingList, Category } from '@/types';
 import { CATEGORIES, suggestCategory } from '@/lib/categories';
 import {
-  getLists,
-  getItemsByList,
-  addItem,
-  toggleItemChecked,
-  updateItemQuantity,
-  deleteItem,
-  clearCompletedItems,
-} from '@/lib/storage';
+  subscribeShoppingItems,
+  addFirestoreListItem,
+  toggleFirestoreListItem,
+  updateFirestoreListItemQuantity,
+  deleteFirestoreListItem,
+  clearCompletedFirestoreListItems,
+  shoppingListDoc,
+} from '@/lib/firestore';
+import { onSnapshot } from 'firebase/firestore';
 
 export default function ListDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,25 +42,46 @@ export default function ListDetailScreen() {
   const [userSelectedCategory, setUserSelectedCategory] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadData = useCallback(async () => {
-    if (!id) return;
-    try {
-      const allLists = await getLists();
-      const list = allLists.find((l) => l.id === id);
-      setCurrentList(list || null);
-
-      const listItems = await getItemsByList(id);
-      setItems(listItems);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!id) return;
+
+    setLoading(true);
+
+    // Subscribe to list details
+    const unsubDoc = onSnapshot(shoppingListDoc(id), (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        setCurrentList({
+          id: snap.id,
+          name: data.name || '',
+          description: data.description,
+          ownerId: data.ownerId,
+          memberIds: data.memberIds,
+          color: data.color || '#E94560',
+          createdAt: data.createdAt || Date.now(),
+          updatedAt: data.updatedAt || Date.now(),
+        });
+      }
+    });
+
+    // Subscribe to list items in real-time
+    const unsubItems = subscribeShoppingItems(
+      id,
+      (fetchedItems) => {
+        setItems(fetchedItems);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Error subscribing to items:', err);
+        setLoading(false);
+      }
+    );
+
+    return () => {
+      unsubDoc();
+      unsubItems();
+    };
+  }, [id]);
 
   const handleNameChange = (text: string) => {
     setItemName(text);
@@ -74,13 +95,12 @@ export default function ListDetailScreen() {
     if (!itemName.trim() || !id) return;
     setSubmitting(true);
     try {
-      await addItem(id, itemName, itemQuantity, selectedCategory);
+      await addFirestoreListItem(id, itemName, itemQuantity, selectedCategory);
       setItemName('');
       setItemQuantity(1);
       setSelectedCategory('Other');
       setUserSelectedCategory(false);
       setModalVisible(false);
-      await loadData();
     } catch (err) {
       console.error('Error adding item', err);
     } finally {
@@ -88,25 +108,21 @@ export default function ListDetailScreen() {
     }
   };
 
-  const handleToggle = async (itemId: string) => {
-    await toggleItemChecked(itemId);
-    loadData();
+  const handleToggle = async (item: ShoppingItem) => {
+    await toggleFirestoreListItem(item.id, item.isChecked);
   };
 
-  const handleQuantity = async (itemId: string, delta: number) => {
-    await updateItemQuantity(itemId, delta);
-    loadData();
+  const handleQuantity = async (item: ShoppingItem, delta: number) => {
+    await updateFirestoreListItemQuantity(item.id, item.quantity + delta);
   };
 
   const handleDelete = async (itemId: string) => {
-    await deleteItem(itemId);
-    loadData();
+    await deleteFirestoreListItem(itemId);
   };
 
   const handleClearCompleted = async () => {
     if (!id) return;
-    await clearCompletedItems(id);
-    loadData();
+    await clearCompletedFirestoreListItems(id);
   };
 
   const filteredItems = items.filter((item) => {
@@ -216,7 +232,7 @@ export default function ListDetailScreen() {
         {loading ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#E94560" />
-            <Text className="text-gray-400 text-sm mt-3">Loading items...</Text>
+            <Text className="text-gray-400 text-sm mt-3">Loading items from Cloud...</Text>
           </View>
         ) : filteredItems.length === 0 ? (
           <View className="flex-1 items-center justify-center px-4">
@@ -250,7 +266,7 @@ export default function ListDetailScreen() {
                 >
                   {/* Left: Checkbox & Name */}
                   <Pressable
-                    onPress={() => handleToggle(item.id)}
+                    onPress={() => handleToggle(item)}
                     className="flex-row items-center flex-1 mr-3"
                   >
                     <View
@@ -297,7 +313,7 @@ export default function ListDetailScreen() {
                   <View className="flex-row items-center">
                     <View className="flex-row items-center bg-[#1A1A2E] rounded-xl border border-[#2E3D60] px-1 py-0.5 mr-2">
                       <Pressable
-                        onPress={() => handleQuantity(item.id, -1)}
+                        onPress={() => handleQuantity(item, -1)}
                         className="w-7 h-7 items-center justify-center rounded-lg active:bg-white/10"
                       >
                         <Ionicons name="remove" size={14} color="#94A3B8" />
@@ -306,7 +322,7 @@ export default function ListDetailScreen() {
                         {item.quantity}
                       </Text>
                       <Pressable
-                        onPress={() => handleQuantity(item.id, 1)}
+                        onPress={() => handleQuantity(item, 1)}
                         className="w-7 h-7 items-center justify-center rounded-lg active:bg-white/10"
                       >
                         <Ionicons name="add" size={14} color="#94A3B8" />

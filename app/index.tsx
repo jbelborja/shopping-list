@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -14,10 +14,19 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ShoppingList, ShoppingItem } from '@/types';
-import { getLists, createList, deleteList, getItemsByList } from '@/lib/storage';
+import { useAuth } from '@/hooks/useAuth';
+import { logOut } from '@/lib/auth';
+import {
+  subscribeShoppingLists,
+  createFirestoreList,
+  deleteFirestoreList,
+  subscribeShoppingItems,
+} from '@/lib/firestore';
 
 export default function ListsScreen() {
   const router = useRouter();
+  const { user, firebaseUser } = useAuth();
+
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [itemsMap, setItemsMap] = useState<Record<string, ShoppingItem[]>>({});
   const [loading, setLoading] = useState(true);
@@ -26,42 +35,41 @@ export default function ListsScreen() {
   const [newListDesc, setNewListDesc] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const loadData = useCallback(async () => {
-    try {
-      const fetchedLists = await getLists();
-      setLists(fetchedLists);
-
-      const itemsPromises = fetchedLists.map(async (l) => {
-        const items = await getItemsByList(l.id);
-        return { listId: l.id, items };
-      });
-      const results = await Promise.all(itemsPromises);
-      const map: Record<string, ShoppingItem[]> = {};
-      results.forEach((r) => {
-        map[r.listId] = r.items;
-      });
-      setItemsMap(map);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (!firebaseUser) return;
+
+    setLoading(true);
+    const unsubLists = subscribeShoppingLists(
+      firebaseUser.uid,
+      (fetchedLists) => {
+        setLists(fetchedLists);
+        setLoading(false);
+
+        // Subscribe to items for each list to show real-time progress
+        fetchedLists.forEach((l) => {
+          subscribeShoppingItems(l.id, (items) => {
+            setItemsMap((prev) => ({ ...prev, [l.id]: items }));
+          });
+        });
+      },
+      (err) => {
+        console.error('Error fetching lists:', err);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubLists();
+  }, [firebaseUser]);
 
   const handleCreateList = async () => {
-    if (!newListName.trim()) return;
+    if (!newListName.trim() || !firebaseUser) return;
     setCreating(true);
     try {
-      const created = await createList(newListName, newListDesc);
+      const listId = await createFirestoreList(firebaseUser.uid, newListName, newListDesc);
       setNewListName('');
       setNewListDesc('');
       setModalVisible(false);
-      await loadData();
-      router.push(`/list/${created.id}`);
+      router.push(`/list/${listId}`);
     } catch (e) {
       console.error('Failed to create list', e);
     } finally {
@@ -87,8 +95,24 @@ export default function ListsScreen() {
   };
 
   const handleDeleteList = async (id: string) => {
-    await deleteList(id);
-    loadData();
+    try {
+      await deleteFirestoreList(id);
+    } catch (err) {
+      console.error('Failed to delete list', err);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (Platform.OS === 'web') {
+      if (window.confirm('Do you want to sign out?')) {
+        await logOut();
+      }
+    } else {
+      Alert.alert('Sign Out', 'Do you want to sign out?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Sign Out', style: 'destructive', onPress: () => logOut() },
+      ]);
+    }
   };
 
   const renderListItem = ({ item }: { item: ShoppingList }) => {
@@ -159,30 +183,51 @@ export default function ListsScreen() {
   return (
     <SafeAreaView className="flex-1 bg-[#1A1A2E]" edges={['top', 'left', 'right']}>
       <View className="flex-1 px-5 pt-3 max-w-2xl w-full mx-auto">
-        {/* Header */}
-        <View className="flex-row items-center justify-between pb-5 border-b border-[#2E3D60]/50 mb-4">
-          <View>
-            <Text className="text-white text-2xl font-black tracking-tight">
-              Shopping List
-            </Text>
-            <Text className="text-gray-400 text-sm mt-0.5">
-              React Native & GitHub Pages
-            </Text>
+        {/* User bar & Actions */}
+        <View className="flex-row items-center justify-between pb-4 border-b border-[#2E3D60]/50 mb-4">
+          <View className="flex-1 mr-3">
+            <View className="flex-row items-center">
+              <View className="w-8 h-8 rounded-full bg-accent/20 border border-accent/40 items-center justify-center mr-2.5">
+                <Text className="text-accent text-xs font-bold">
+                  {(user?.displayName || firebaseUser?.email || 'U')[0].toUpperCase()}
+                </Text>
+              </View>
+              <View className="flex-1">
+                <Text className="text-white text-base font-bold" numberOfLines={1}>
+                  {user?.displayName || 'My Shopping Lists'}
+                </Text>
+                <Text className="text-gray-400 text-xs" numberOfLines={1}>
+                  {firebaseUser?.email || ''}
+                </Text>
+              </View>
+            </View>
           </View>
-          <Pressable
-            onPress={() => setModalVisible(true)}
-            className="bg-accent flex-row items-center px-4 py-2.5 rounded-xl active:bg-accentHover shadow-md"
-          >
-            <Ionicons name="add" size={20} color="#FFFFFF" />
-            <Text className="text-white font-bold text-sm ml-1">New List</Text>
-          </Pressable>
+
+          <View className="flex-row items-center space-x-2">
+            <Pressable
+              onPress={() => setModalVisible(true)}
+              className="bg-accent flex-row items-center px-3.5 py-2 rounded-xl active:bg-accentHover shadow-md mr-2"
+            >
+              <Ionicons name="add" size={18} color="#FFFFFF" />
+              <Text className="text-white font-bold text-xs ml-1">New List</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={handleSignOut}
+              hitSlop={10}
+              className="p-2 rounded-xl bg-[#16213E] border border-[#2E3D60] active:bg-white/10"
+              title="Sign Out"
+            >
+              <Ionicons name="log-out-outline" size={18} color="#94A3B8" />
+            </Pressable>
+          </View>
         </View>
 
         {/* Content */}
         {loading ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color="#E94560" />
-            <Text className="text-gray-400 text-sm mt-3">Loading lists...</Text>
+            <Text className="text-gray-400 text-sm mt-3">Connecting to Cloud Storage...</Text>
           </View>
         ) : lists.length === 0 ? (
           <View className="flex-1 items-center justify-center px-4">
@@ -193,11 +238,11 @@ export default function ListsScreen() {
               No Shopping Lists Yet
             </Text>
             <Text className="text-gray-400 text-sm text-center mt-2 max-w-xs">
-              Create your first shopping list to keep track of groceries, ingredients, or party supplies.
+              Create your first cloud shopping list to keep track of groceries and sync across devices in real time.
             </Text>
             <Pressable
               onPress={() => setModalVisible(true)}
-              className="bg-accent px-6 py-3 rounded-xl mt-6 active:bg-accentHover"
+              className="bg-accent px-6 py-3 rounded-xl mt-6 active:bg-accentHover shadow-md"
             >
               <Text className="text-white font-bold">Create First List</Text>
             </Pressable>
@@ -243,7 +288,7 @@ export default function ListsScreen() {
             <TextInput
               value={newListDesc}
               onChangeText={setNewListDesc}
-              placeholder="e.g. Items for lunch and dinner"
+              placeholder="e.g. Items for dinner and breakfast"
               placeholderTextColor="#64748B"
               className="bg-[#1A1A2E] border border-[#2E3D60] text-white px-4 py-3 rounded-xl mb-6 font-normal"
             />

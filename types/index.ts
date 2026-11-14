@@ -8,6 +8,14 @@ export type Category =
   | 'Household'
   | 'Other';
 
+export interface User {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL?: string;
+  createdAt?: any;
+}
+
 export interface ShoppingItem {
   id: string;
   listId: string;
@@ -22,6 +30,8 @@ export interface ShoppingList {
   id: string;
   name: string;
   description?: string;
+  ownerId: string;
+  memberIds?: string[];
   color?: string;
   createdAt: number;
   updatedAt: number;

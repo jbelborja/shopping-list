@@ -37,13 +37,12 @@ jobs:
           npx expo export --platform web --output-dir dist
 
           # GitHub Pages SPA routing fix:
-          # When a user navigates directly to a deep link like /list/ABC, GitHub Pages
-          # returns a 404 (no static file exists). We fix this with a two-part trick:
+          # When a user navigates directly to a deep link like /list/ABC or /(auth)/login,
+          # GitHub Pages returns a 404 (no static file exists). We fix this with:
           #
           # 1. 404.html: immediately redirects to the app root, encoding the original
           #    path as a ?p= query parameter so it isn't lost.
-          # 2. index.html: a small inline script runs before React/Expo boots and restores
-          #    the encoded path via history.replaceState, so Expo Router sees the correct URL.
+          # 2. index.html: inline script restores the encoded path via history.replaceState.
 
           BASE_URL="/shopping-list"
 
@@ -55,9 +54,6 @@ jobs:
               <meta charset="utf-8" />
               <title>Shopping List</title>
               <script>
-                // GitHub Pages SPA redirect (https://github.com/rafgraph/spa-github-pages)
-                // Encodes the path, query, and hash as a query param and redirects to the
-                // base URL so index.html can restore them via history.replaceState.
                 var l = window.location;
                 l.replace(
                   l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
@@ -74,8 +70,16 @@ jobs:
           # --- Inject path-restore script into index.html (before </head>) ---
           RESTORE_SCRIPT='<script>(function(){var p=new URLSearchParams(window.location.search).get("p");if(p){var h=new URLSearchParams(window.location.search).get("hash");window.history.replaceState(null,null,"/shopping-list"+decodeURIComponent(p)+(h?"#"+decodeURIComponent(h):""));}}());</script>'
 
-          # Insert the restore script right before </head>
           sed -i "s|</head>|${RESTORE_SCRIPT}</head>|" dist/index.html
+        env:
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_FIREBASE_HOSTING_URL: ${{ secrets.EXPO_PUBLIC_FIREBASE_HOSTING_URL || 'https://jbelborja.github.io/shopping-list' }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
