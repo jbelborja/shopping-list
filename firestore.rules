@@ -1,0 +1,25 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Users can only read/write their own profile
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Shopping lists: owner or any member can read/write
+    match /shopping_lists/{listId} {
+      allow read, write: if request.auth != null && (
+        request.auth.uid == resource.data.ownerId ||
+        request.auth.uid in resource.data.memberIds
+      );
+      allow create: if request.auth != null &&
+        request.auth.uid == request.resource.data.ownerId;
+    }
+
+    // Shopping items: any authenticated user with access to the parent list
+    match /shopping_items/{itemId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

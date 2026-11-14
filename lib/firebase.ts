@@ -7,12 +7,12 @@ import { getFirestore, initializeFirestore, Firestore } from 'firebase/firestore
 import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'AIzaSyBeT_60firNCQeiB4hA1-Xnc21bqNN9KFg',
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'secret-santa-2026-4f5f6.firebaseapp.com',
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'secret-santa-2026-4f5f6',
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'secret-santa-2026-4f5f6.firebasestorage.app',
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '553006398541',
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:553006398541:web:e4cc49b49085f101a53004',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'AIzaSyBfRIaDXen2D2NYvnwyENoZFF9aUEQGy9Q',
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'shopping-list-2026-4f8a2.firebaseapp.com',
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'shopping-list-2026-4f8a2',
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'shopping-list-2026-4f8a2.firebasestorage.app',
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '168502063525',
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || '1:168502063525:web:ac8c2c4962e371ca38f84c',
 };
 
 let app: FirebaseApp;
