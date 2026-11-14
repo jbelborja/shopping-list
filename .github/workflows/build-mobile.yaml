@@ -1,0 +1,394 @@
+name: Build Mobile App
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: "Plataforma a compilar"
+        required: true
+        default: "all"
+        type: choice
+        options:
+          - all
+          - android
+          - ios
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.platform == 'android' || inputs.platform == 'all' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create .env
+        run: |
+          cat << 'EOF' > .env
+          EXPO_PUBLIC_FIREBASE_API_KEY=${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID=${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_FIREBASE_HOSTING_URL=${{ secrets.EXPO_PUBLIC_FIREBASE_HOSTING_URL || 'https://jbelborja.github.io/shopping-list' }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+          EOF
+
+      - name: Create google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          DUMMY_JSON='{
+            "project_info": {
+              "project_number": "168502063525",
+              "project_id": "shopping-list-2026-4f8a2",
+              "storage_bucket": "shopping-list-2026-4f8a2.firebasestorage.app"
+            },
+            "client": [
+              {
+                "client_info": {
+                  "mobilesdk_app_id": "1:168502063525:android:dummy",
+                  "android_client_info": {
+                    "package_name": "com.jbelborja.shoppinglist"
+                  }
+                },
+                "oauth_client": [],
+                "api_key": [
+                  {
+                    "current_key": "dummy-api-key"
+                  }
+                ],
+                "services": {
+                  "appinvite_service": {
+                    "other_platform_oauth_client": []
+                  }
+                }
+              }
+            ],
+            "configuration_version": "1"
+          }'
+
+          if [ -n "$GOOGLE_SERVICES_JSON" ] && echo "$GOOGLE_SERVICES_JSON" | grep -q "project_info"; then
+            echo "GOOGLE_SERVICES_JSON válido encontrado en secrets."
+            echo "$GOOGLE_SERVICES_JSON" > google-services.json
+          else
+            echo "Aviso: GOOGLE_SERVICES_JSON no configurado o inválido, creando archivo dummy para prebuild"
+            echo "$DUMMY_JSON" > google-services.json
+          fi
+
+      - name: Prebuild Android
+        run: npx expo prebuild --platform android
+
+      - name: Restore Signing Keystore
+        run: cp credentials/debug.keystore android/app/debug.keystore
+
+      - name: Fix Kotlin version compatibility
+        run: |
+          # 1. Suprimir el check de versión de Kotlin del Compose Compiler
+          echo "suppressKotlinVersionCompatibilityCheck=true" >> android/gradle.properties
+          echo "kotlinVersion=1.9.25" >> android/gradle.properties
+
+          # 2. Forzar Kotlin 1.9.25 y Compose suppression en todos los subproyectos
+          cat << 'EOF' >> android/build.gradle
+
+          allprojects {
+              configurations.all {
+                  resolutionStrategy.eachDependency { DependencyResolveDetails details ->
+                      if (details.requested.group == 'org.jetbrains.kotlin') {
+                          details.useVersion '1.9.25'
+                      }
+                  }
+              }
+              tasks.withType(org.jetbrains.kotlin.gradle.tasks.KotlinCompile).configureEach {
+                  kotlinOptions {
+                      freeCompilerArgs += [
+                          "-P",
+                          "plugin:androidx.compose.compiler.plugins.kotlin:suppressKotlinVersionCompatibilityCheck=true"
+                      ]
+                  }
+              }
+          }
+          EOF
+          echo "=== android/gradle.properties ==="
+          cat android/gradle.properties
+
+      - name: Build APK (Release)
+        working-directory: ./android
+        env:
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_FIREBASE_HOSTING_URL: ${{ secrets.EXPO_PUBLIC_FIREBASE_HOSTING_URL || 'https://jbelborja.github.io/shopping-list' }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID }}
+        run: ./gradlew assembleRelease -PkotlinVersion=1.9.25
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopping-list-android
+          path: android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Publish Android APK to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view latest-build || gh release create latest-build --title "Latest Shopping List App" --notes "Automated native build of Shopping List app" || true
+          gh release upload latest-build "android/app/build/outputs/apk/release/app-release.apk#shopping-list.apk" --clobber
+
+  build-ios:
+    runs-on: macos-14
+    if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Create .env
+        run: |
+          cat << 'EOF' > .env
+          EXPO_PUBLIC_FIREBASE_API_KEY=${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN=${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID=${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET=${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID=${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_FIREBASE_HOSTING_URL=${{ secrets.EXPO_PUBLIC_FIREBASE_HOSTING_URL || 'https://jbelborja.github.io/shopping-list' }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+          EOF
+
+      - name: Create GoogleService-Info.plist
+        env:
+          GOOGLE_SERVICE_INFO_PLIST: ${{ secrets.GOOGLE_SERVICE_INFO_PLIST }}
+        run: |
+          DUMMY_PLIST='<?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CLIENT_ID</key>
+            <string>168502063525-dummy.apps.googleusercontent.com</string>
+            <key>REVERSED_CLIENT_ID</key>
+            <string>com.googleusercontent.apps.168502063525-dummy</string>
+            <key>API_KEY</key>
+            <string>dummy-api-key</string>
+            <key>GCM_SENDER_ID</key>
+            <string>168502063525</string>
+            <key>PLIST_VERSION</key>
+            <string>1</string>
+            <key>BUNDLE_ID</key>
+            <string>com.jbelborja.shoppinglist</string>
+            <key>PROJECT_ID</key>
+            <string>shopping-list-2026-4f8a2</string>
+            <key>STORAGE_BUCKET</key>
+            <string>shopping-list-2026-4f8a2.firebasestorage.app</string>
+            <key>IS_ADS_ENABLED</key>
+            <false/>
+            <key>IS_ANALYTICS_ENABLED</key>
+            <false/>
+            <key>IS_APPINVITE_ENABLED</key>
+            <true/>
+            <key>IS_GCM_ENABLED</key>
+            <true/>
+            <key>IS_SIGNIN_ENABLED</key>
+            <true/>
+            <key>GOOGLE_APP_ID</key>
+            <string>1:168502063525:ios:dummy</string>
+          </dict>
+          </plist>'
+
+          if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ] && echo "$GOOGLE_SERVICE_INFO_PLIST" | grep -q "<plist" && echo "$GOOGLE_SERVICE_INFO_PLIST" | grep -q "</plist>"; then
+            echo "GOOGLE_SERVICE_INFO_PLIST válido encontrado en secrets."
+            echo "$GOOGLE_SERVICE_INFO_PLIST" > GoogleService-Info.plist
+          else
+            echo "Aviso: GOOGLE_SERVICE_INFO_PLIST no configurado o no es un XML Plist válido. Usando dummy plist para prebuild."
+            echo "$DUMMY_PLIST" > GoogleService-Info.plist
+          fi
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        id: pods-cache
+        with:
+          path: ~/Library/Caches/CocoaPods
+          key: pods-cache-${{ hashFiles('package.json') }}-v3
+          restore-keys: pods-cache-
+
+      - name: Prebuild iOS
+        run: npx expo prebuild --platform ios
+
+      - name: Patch Podfile and Install CocoaPods
+        working-directory: ./ios
+        run: |
+          python3 << 'PYEOF'
+          import re
+
+          with open('Podfile', 'r') as f:
+              content = f.read()
+
+          # Fix 1: Modular headers for Google and support pods inside the target
+          modular_pods = (
+              "\n"
+              "  # Modular headers for Google pods\n"
+              "  pod 'GoogleDataTransport', :modular_headers => true\n"
+              "  pod 'GoogleUtilities', :modular_headers => true\n"
+              "  pod 'PromisesObjC', :modular_headers => true\n"
+              "  pod 'nanopb', :modular_headers => true\n"
+          )
+          content = re.sub(
+              r"(^\s*target '[^']+' do\s*$)",
+              r"\1" + modular_pods,
+              content,
+              count=1,
+              flags=re.MULTILINE
+          )
+
+          # Fix 2: Deployment target 15.1, CLANG_ALLOW_NON_MODULAR_INCLUDES, and DEFINES_MODULE in targets and bundles
+          fix = (
+              "\n"
+              "    # Fix for Xcode + GoogleSignIn + React Native\n"
+              "    installer.pods_project.build_configurations.each do |config|\n"
+              "      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'\n"
+              "    end\n"
+              "    installer.pods_project.targets.each do |target|\n"
+              "      target.build_configurations.each do |config|\n"
+              "        config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'\n"
+              "        config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'\n"
+              "        if target.name.start_with?('Firebase') || target.name.start_with?('Google') || ['nanopb', 'PromisesObjC'].include?(target.name)\n"
+              "          config.build_settings['DEFINES_MODULE'] = 'YES'\n"
+              "          config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'\n"
+              "          config.build_settings['SWIFT_VERSION'] = '5.0'\n"
+              "        end\n"
+              "      end\n"
+              "    end\n"
+              "    if installer.respond_to?(:target_installation_results)\n"
+              "      installer.target_installation_results.pod_target_installation_results.each do |_, res|\n"
+              "        res.resource_bundle_targets.each do |rb_target|\n"
+              "          rb_target.build_configurations.each do |config|\n"
+              "            config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '15.1'\n"
+              "            config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'\n"
+              "          end\n"
+              "        end\n"
+              "      end\n"
+              "    end\n"
+          )
+          content = re.sub(
+              r'(^\s*post_install do \|installer\|)',
+              r'\1' + fix,
+              content,
+              count=1,
+              flags=re.MULTILINE
+          )
+
+          with open('Podfile', 'w') as f:
+              f.write(content)
+
+          print("Podfile patched successfully")
+          PYEOF
+
+          echo "=== Verifying Podfile ==="
+          grep -n "GoogleUtilities\|IPHONEOS\|CLANG_ALLOW_NON_MODULAR\|DEFINES_MODULE" Podfile
+
+          pod install --repo-update
+
+      - name: Build iOS App (.app / .ipa)
+        working-directory: ./ios
+        env:
+          EXPO_PUBLIC_FIREBASE_API_KEY: ${{ secrets.EXPO_PUBLIC_FIREBASE_API_KEY }}
+          EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN: ${{ secrets.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN }}
+          EXPO_PUBLIC_FIREBASE_PROJECT_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_PROJECT_ID }}
+          EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET: ${{ secrets.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET }}
+          EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
+          EXPO_PUBLIC_FIREBASE_APP_ID: ${{ secrets.EXPO_PUBLIC_FIREBASE_APP_ID }}
+          EXPO_PUBLIC_FIREBASE_HOSTING_URL: ${{ secrets.EXPO_PUBLIC_FIREBASE_HOSTING_URL || 'https://jbelborja.github.io/shopping-list' }}
+          EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: ${{ secrets.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          WORKSPACE_NAME=$(basename *.xcworkspace .xcworkspace)
+          echo "Building workspace and scheme: $WORKSPACE_NAME"
+
+          set -o pipefail
+          xcodebuild \
+            -workspace "${WORKSPACE_NAME}.xcworkspace" \
+            -scheme "$WORKSPACE_NAME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES=YES \
+            IPHONEOS_DEPLOYMENT_TARGET=15.1 \
+            build 2>&1 | tee xcodebuild.log || {
+              echo "=== XCODEBUILD FAILED: ERRORS DETECTED ==="
+              grep -E "(error:|fatal error:|\*\* BUILD FAILED \*\*)" xcodebuild.log | head -n 30 || tail -n 60 xcodebuild.log
+              exit 65
+            }
+
+          # Package resulting .app into .ipa
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/${WORKSPACE_NAME}.app Payload/
+          zip -r shopping-list-ios.ipa Payload
+          mv shopping-list-ios.ipa ../shopping-list-ios.ipa
+
+      - name: Upload iOS App Artifact (.ipa)
+        uses: actions/upload-artifact@v4
+        with:
+          name: shopping-list-ios
+          path: shopping-list-ios.ipa
+
+      - name: Publish iOS IPA to Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view latest-build || gh release create latest-build --title "Latest Shopping List App" --notes "Automated native build of Shopping List app" || true
+          gh release upload latest-build "shopping-list-ios.ipa#shopping-list.ipa" --clobber
+
+  prune-artifacts:
+    runs-on: ubuntu-latest
+    needs: [build-android, build-ios]
+    if: always()
+    steps:
+      - name: Prune old artifacts (keep last 3 of each app)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          for ARTIFACT_TYPE in "shopping-list-android" "shopping-list-ios"; do
+            echo "Processing artifacts for: $ARTIFACT_TYPE"
+            gh api "repos/$REPO/actions/artifacts?per_page=100" \
+              --jq ".artifacts | [.[] | select(.name == \"$ARTIFACT_TYPE\")] | sort_by(.created_at) | reverse | .[3:][] | .id" > to_delete.txt || true
+
+            while IFS= read -r id; do
+              if [ -n "$id" ]; then
+                echo "Deleting old artifact ID: $id"
+                gh api --method DELETE "repos/$REPO/actions/artifacts/$id" || true
+              fi
+            done < to_delete.txt
+          done
