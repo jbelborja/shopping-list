@@ -1,0 +1,92 @@
+name: Deploy Web to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Export web build
+        run: |
+          npx expo export --platform web --output-dir dist
+
+          # GitHub Pages SPA routing fix:
+          # When a user navigates directly to a deep link like /list/ABC, GitHub Pages
+          # returns a 404 (no static file exists). We fix this with a two-part trick:
+          #
+          # 1. 404.html: immediately redirects to the app root, encoding the original
+          #    path as a ?p= query parameter so it isn't lost.
+          # 2. index.html: a small inline script runs before React/Expo boots and restores
+          #    the encoded path via history.replaceState, so Expo Router sees the correct URL.
+
+          BASE_URL="/shopping-list"
+
+          # --- Generate 404.html ---
+          cat > dist/404.html << 'FOUR04'
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>Shopping List</title>
+              <script>
+                // GitHub Pages SPA redirect (https://github.com/rafgraph/spa-github-pages)
+                // Encodes the path, query, and hash as a query param and redirects to the
+                // base URL so index.html can restore them via history.replaceState.
+                var l = window.location;
+                l.replace(
+                  l.protocol + '//' + l.hostname + (l.port ? ':' + l.port : '') +
+                  '/shopping-list' +
+                  '/?p=' + encodeURIComponent(l.pathname.slice('/shopping-list'.length) + l.search) +
+                  (l.hash ? '&hash=' + encodeURIComponent(l.hash.slice(1)) : '')
+                );
+              </script>
+            </head>
+            <body></body>
+          </html>
+          FOUR04
+
+          # --- Inject path-restore script into index.html (before </head>) ---
+          RESTORE_SCRIPT='<script>(function(){var p=new URLSearchParams(window.location.search).get("p");if(p){var h=new URLSearchParams(window.location.search).get("hash");window.history.replaceState(null,null,"/shopping-list"+decodeURIComponent(p)+(h?"#"+decodeURIComponent(h):""));}}());</script>'
+
+          # Insert the restore script right before </head>
+          sed -i "s|</head>|${RESTORE_SCRIPT}</head>|" dist/index.html
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

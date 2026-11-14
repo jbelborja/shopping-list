@@ -1,0 +1,21 @@
+{
+  "expo": {
+    "name": "Shopping List",
+    "slug": "shopping-list",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "shoppinglist",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "experiments": {
+      "baseUrl": "/shopping-list"
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Remove browser default focus outline on Pressable/Button elements (web only) */
+div[role="button"],
+button {
+  outline: none;
+}
+
+body {
+  background-color: #1A1A2E;
+  color: #FFFFFF;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
