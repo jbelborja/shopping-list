@@ -77,6 +77,8 @@ export const en: Translations = {
     categoryLabel: 'Category',
     adding: 'Adding...',
     allCategories: 'All',
+    sharedWith: 'Shared with',
+    autoCategory: '(Auto)',
   },
   categories: {
     'Fruit & Veg': 'Fruit & Veg',

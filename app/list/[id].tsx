@@ -7,6 +7,7 @@ import {
   Modal,
   ScrollView,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -31,7 +32,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { ShareListModal } from '@/components/ShareListModal';
 
 export default function ListDetailScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const rawParams = useLocalSearchParams<{ id: string }>();
+  const id = Array.isArray(rawParams.id) ? rawParams.id[0] : rawParams.id;
   const router = useRouter();
   const { firebaseUser } = useAuth();
   const { t } = useTranslation();
@@ -55,23 +57,29 @@ export default function ListDetailScreen() {
 
     setLoading(true);
 
-    const unsubDoc = onSnapshot(shoppingListDoc(id), (snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
-        setCurrentList({
-          id: snap.id,
-          name: data.name || '',
-          description: data.description,
-          ownerId: data.ownerId,
-          ownerEmail: data.ownerEmail,
-          memberIds: data.memberIds || [],
-          memberEmails: data.memberEmails || [],
-          color: data.color || '#6366F1',
-          createdAt: data.createdAt || Date.now(),
-          updatedAt: data.updatedAt || Date.now(),
-        });
+    const unsubDoc = onSnapshot(
+      shoppingListDoc(id),
+      (snap) => {
+        if (snap.exists()) {
+          const data = snap.data();
+          setCurrentList({
+            id: snap.id,
+            name: data.name || '',
+            description: data.description,
+            ownerId: data.ownerId,
+            ownerEmail: data.ownerEmail,
+            memberIds: data.memberIds || [],
+            memberEmails: data.memberEmails || [],
+            color: data.color || '#6366F1',
+            createdAt: data.createdAt || Date.now(),
+            updatedAt: data.updatedAt || Date.now(),
+          });
+        }
+      },
+      (err) => {
+        console.warn('Error listening to list doc:', err);
       }
-    });
+    );
 
     const unsubItems = subscribeShoppingItems(
       id,
@@ -102,39 +110,90 @@ export default function ListDetailScreen() {
   const handleAddItem = async () => {
     if (!itemName.trim() || !id) return;
     setSubmitting(true);
+    const trimmedName = itemName.trim();
+    const currentQty = itemQuantity;
+    const currentCat = selectedCategory;
+
+    setItemName('');
+    setItemQuantity(1);
+    setSelectedCategory('Other');
+    setUserSelectedCategory(false);
+    setModalVisible(false);
+
     try {
-      await addFirestoreListItem(id, itemName, itemQuantity, selectedCategory);
-      setItemName('');
-      setItemQuantity(1);
-      setSelectedCategory('Other');
-      setUserSelectedCategory(false);
-      setModalVisible(false);
-    } catch (e) {
+      const newItemId = await addFirestoreListItem(id, trimmedName, currentQty, currentCat);
+      setItems((prev) => {
+        if (prev.some((item) => item.id === newItemId)) return prev;
+        const newItem: ShoppingItem = {
+          id: newItemId,
+          listId: id,
+          name: trimmedName,
+          quantity: Math.max(1, currentQty),
+          category: currentCat,
+          isChecked: false,
+          createdAt: Date.now(),
+        };
+        return [newItem, ...prev];
+      });
+    } catch (e: any) {
       console.error('Failed to add item', e);
+      Alert.alert(t('common.error') || 'Error', e?.message || 'Failed to add item to Firestore');
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleToggleItem = async (itemId: string, currentState: boolean) => {
-    await toggleFirestoreListItem(itemId, currentState);
+    setItems((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, isChecked: !currentState } : i))
+    );
+    try {
+      await toggleFirestoreListItem(itemId, currentState);
+    } catch (e) {
+      console.error('Failed to toggle item', e);
+      setItems((prev) =>
+        prev.map((i) => (i.id === itemId ? { ...i, isChecked: currentState } : i))
+      );
+    }
   };
 
   const handleUpdateQuantity = async (itemId: string, newQty: number) => {
     if (newQty <= 0) {
-      await deleteFirestoreListItem(itemId);
+      setItems((prev) => prev.filter((i) => i.id !== itemId));
+      try {
+        await deleteFirestoreListItem(itemId);
+      } catch (e) {
+        console.error('Failed to delete item', e);
+      }
     } else {
-      await updateFirestoreListItemQuantity(itemId, newQty);
+      setItems((prev) =>
+        prev.map((i) => (i.id === itemId ? { ...i, quantity: newQty } : i))
+      );
+      try {
+        await updateFirestoreListItemQuantity(itemId, newQty);
+      } catch (e) {
+        console.error('Failed to update quantity', e);
+      }
     }
   };
 
   const handleDeleteItem = async (itemId: string) => {
-    await deleteFirestoreListItem(itemId);
+    setItems((prev) => prev.filter((i) => i.id !== itemId));
+    try {
+      await deleteFirestoreListItem(itemId);
+    } catch (e) {
+      console.error('Failed to delete item', e);
+    }
   };
 
   const handleClearCompleted = async () => {
     if (!id) return;
-    await clearCompletedFirestoreListItems(id);
+    setItems((prev) => prev.filter((i) => !i.isChecked));
+    try {
+      await clearCompletedFirestoreListItems(id);
+    } catch (e) {
+      console.error('Failed to clear completed items', e);
+    }
   };
 
   const filteredItems = items.filter((item) => {
@@ -145,48 +204,108 @@ export default function ListDetailScreen() {
   const completedCount = items.filter((i) => i.isChecked).length;
   const totalCount = items.length;
 
+  const ownerEmail = (currentList?.ownerEmail || '').toLowerCase().trim();
+  const rawMembers = currentList?.memberEmails || [];
+  const allCollaborators = Array.from(
+    new Set(
+      [ownerEmail, ...rawMembers]
+        .map((e) => e.toLowerCase().trim())
+        .filter((e) => e.length > 0)
+    )
+  );
+
   return (
-    <SafeAreaView className="flex-1 bg-slate-950" edges={['left', 'right', 'bottom']}>
-      <View className="flex-1 px-5 pt-2 max-w-2xl w-full mx-auto">
-        {/* Header Bar */}
-        <View className="flex-row items-center justify-between pb-4 border-b border-slate-800/80 mb-4">
-          <View className="flex-row items-center flex-1 mr-3">
+    <SafeAreaView className="flex-1 bg-slate-950" edges={['top', 'left', 'right', 'bottom']}>
+      <View className="flex-1 px-4 pt-2 max-w-2xl w-full mx-auto">
+        {/* Top Navigation Bar */}
+        <View className="flex-row items-center justify-between pb-3 border-b border-slate-800/80 mb-3">
+          <View className="flex-row items-center flex-1 mr-3 min-w-0">
             <Pressable
               onPress={() => router.back()}
-              className="mr-3 p-2 -ml-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 active:bg-slate-700 transition-colors"
+              className="mr-3 p-2 -ml-1 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 active:bg-slate-700 transition-colors"
             >
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </Pressable>
-            <View className="flex-1">
+            <View className="flex-1 min-w-0">
               <Text className="text-white text-xl font-bold tracking-tight" numberOfLines={1}>
                 {currentList?.name || t('listDetail.title')}
               </Text>
-              <Text className="text-slate-400 text-xs mt-0.5">
-                {totalCount === 0
-                  ? t('lists.emptyList')
-                  : t('listDetail.progress', { completed: completedCount, total: totalCount })}
-              </Text>
             </View>
           </View>
+          <LanguageToggle />
+        </View>
 
-          <View className="flex-row items-center space-x-2">
-            <LanguageToggle />
-
+        {/* Collaborators Bar */}
+        <View className="mb-3 bg-slate-900/80 border border-slate-800 rounded-2xl p-3">
+          <View className="flex-row items-center justify-between mb-2">
+            <View className="flex-row items-center">
+              <Ionicons name="people-outline" size={15} color="#818CF8" />
+              <Text className="text-slate-300 text-xs font-bold ml-1.5 uppercase tracking-wider">
+                {t('listDetail.sharedWith')} ({allCollaborators.length})
+              </Text>
+            </View>
             <Pressable
               onPress={() => setShareModalVisible(true)}
-              className="flex-row items-center px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 active:bg-slate-700"
+              className="flex-row items-center px-2.5 py-1 rounded-lg bg-indigo-600/20 border border-indigo-500/30 hover:bg-indigo-600/30 active:bg-indigo-600/40"
             >
-              <Ionicons name="people-outline" size={16} color="#818CF8" />
-              <Text className="text-xs font-semibold text-slate-200 ml-1.5">{t('listDetail.share')}</Text>
-              {(currentList?.memberEmails?.length || 0) > 1 && (
-                <View className="ml-1.5 px-1.5 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-500/30">
-                  <Text className="text-[10px] font-bold text-indigo-400">
-                    {currentList?.memberEmails?.length}
+              <Ionicons name="person-add-outline" size={13} color="#818CF8" />
+              <Text className="text-xs font-semibold text-indigo-400 ml-1">
+                {t('listDetail.share')}
+              </Text>
+            </Pressable>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} className="flex-row">
+            {allCollaborators.map((email) => {
+              const isListOwner = email.toLowerCase() === ownerEmail.toLowerCase();
+              const isMe = email.toLowerCase() === (firebaseUser?.email || '').toLowerCase();
+              const initial = (email[0] || '?').toUpperCase();
+              const displayName = email.split('@')[0];
+
+              return (
+                <View
+                  key={email}
+                  className={`flex-row items-center mr-2 px-2.5 py-1 rounded-xl border ${
+                    isListOwner
+                      ? 'bg-amber-500/10 border-amber-500/30'
+                      : isMe
+                      ? 'bg-indigo-500/10 border-indigo-500/30'
+                      : 'bg-slate-950/60 border-slate-800'
+                  }`}
+                >
+                  <View
+                    className={`w-4 h-4 rounded-full items-center justify-center mr-1.5 ${
+                      isListOwner ? 'bg-amber-500/30' : isMe ? 'bg-indigo-500/30' : 'bg-slate-800'
+                    }`}
+                  >
+                    <Text
+                      className={`text-[9px] font-bold ${
+                        isListOwner ? 'text-amber-300' : isMe ? 'text-indigo-300' : 'text-slate-300'
+                      }`}
+                    >
+                      {initial}
+                    </Text>
+                  </View>
+                  <Text className="text-xs text-slate-200 font-medium" numberOfLines={1}>
+                    {displayName} {isListOwner ? '👑' : ''} {isMe ? t('share.you') : ''}
                   </Text>
                 </View>
-              )}
-            </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
 
+        {/* Progress & Action Controls Row */}
+        <View className="flex-row items-center justify-between mb-3 gap-2">
+          <View className="flex-1 min-w-0 mr-2">
+            <Text className="text-slate-400 text-xs font-medium" numberOfLines={1}>
+              {totalCount === 0
+                ? t('lists.emptyList')
+                : t('listDetail.progress', { completed: completedCount, total: totalCount })}
+            </Text>
+          </View>
+
+          <View className="flex-row items-center gap-2 shrink-0">
             {completedCount > 0 && (
               <Button
                 title={t('listDetail.clearChecked')}
@@ -207,7 +326,7 @@ export default function ListDetailScreen() {
         </View>
 
         {/* Category Horizontal Filter Pills */}
-        <View className="mb-4">
+        <View className="mb-3">
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -292,10 +411,10 @@ export default function ListDetailScreen() {
                     {/* Checkbox & Item Name */}
                     <Pressable
                       onPress={() => handleToggleItem(item.id, item.isChecked)}
-                      className="flex-row items-center flex-1 mr-3"
+                      className="flex-row items-center flex-1 mr-2 min-w-0"
                     >
                       <View
-                        className={`w-6 h-6 rounded-lg items-center justify-center mr-3 border transition-colors ${
+                        className={`w-6 h-6 rounded-lg items-center justify-center mr-3 shrink-0 border transition-colors ${
                           item.isChecked
                             ? 'bg-emerald-500 border-emerald-400 shadow-sm shadow-emerald-500/20'
                             : 'border-slate-700 bg-slate-950/60'
@@ -305,8 +424,9 @@ export default function ListDetailScreen() {
                           <Ionicons name="checkmark" size={16} color="#FFFFFF" />
                         )}
                       </View>
-                      <View className="flex-1">
+                      <View className="flex-1 min-w-0">
                         <Text
+                          numberOfLines={2}
                           className={`text-base font-semibold leading-5 ${
                             item.isChecked
                               ? 'line-through text-slate-500'
@@ -317,10 +437,10 @@ export default function ListDetailScreen() {
                         </Text>
                         <View className="flex-row items-center mt-1">
                           <View
-                            className="w-2 h-2 rounded-full mr-1.5"
+                            className="w-2 h-2 rounded-full mr-1.5 shrink-0"
                             style={{ backgroundColor: catObj.color }}
                           />
-                          <Text className="text-slate-400 text-[11px] font-medium">
+                          <Text className="text-slate-400 text-[11px] font-medium" numberOfLines={1}>
                             {getCategoryLabel(item.category, t)}
                           </Text>
                         </View>
@@ -328,7 +448,7 @@ export default function ListDetailScreen() {
                     </Pressable>
 
                     {/* Quantity Stepper & Delete */}
-                    <View className="flex-row items-center space-x-2">
+                    <View className="flex-row items-center space-x-1.5 shrink-0">
                       <View className="flex-row items-center bg-slate-950/80 rounded-xl border border-slate-800/80 px-1.5 py-1">
                         <Pressable
                           onPress={() => handleUpdateQuantity(item.id, item.quantity - 1)}
@@ -336,7 +456,7 @@ export default function ListDetailScreen() {
                         >
                           <Ionicons name="remove" size={13} color="#94A3B8" />
                         </Pressable>
-                        <Text className="text-white text-xs font-bold px-2">
+                        <Text className="text-white text-xs font-bold px-1.5">
                           {item.quantity}
                         </Text>
                         <Pressable
@@ -349,7 +469,7 @@ export default function ListDetailScreen() {
 
                       <Pressable
                         onPress={() => handleDeleteItem(item.id)}
-                        className="p-1.5 rounded-lg hover:bg-slate-800 active:bg-slate-700 ml-1"
+                        className="p-1.5 rounded-lg hover:bg-slate-800 active:bg-slate-700 ml-0.5"
                       >
                         <Ionicons name="trash-outline" size={16} color="#64748B" />
                       </Pressable>
@@ -417,7 +537,7 @@ export default function ListDetailScreen() {
 
             {/* Category selection */}
             <Text className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
-              {t('listDetail.categoryLabel')} {!userSelectedCategory && itemName ? '(Auto)' : ''}
+              {t('listDetail.categoryLabel')} {!userSelectedCategory && itemName ? ` ${t('listDetail.autoCategory')}` : ''}
             </Text>
             <View className="flex-row flex-wrap gap-2 mb-6">
               {CATEGORIES.map((cat) => {

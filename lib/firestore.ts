@@ -76,8 +76,7 @@ export function subscribeShoppingLists(
   // 1. Listen for lists owned by userId
   const qOwned = query(
     shoppingListsCollection,
-    where('ownerId', '==', userId),
-    orderBy('createdAt', 'desc')
+    where('ownerId', '==', userId)
   );
 
   const unsubOwned = onSnapshot(
@@ -172,8 +171,7 @@ export function subscribeShoppingItems(
 ) {
   const q = query(
     shoppingItemsCollection,
-    where('listId', '==', listId),
-    orderBy('createdAt', 'desc')
+    where('listId', '==', listId)
   );
 
   return onSnapshot(
@@ -192,6 +190,8 @@ export function subscribeShoppingItems(
           createdAt: data.createdAt || Date.now(),
         });
       });
+      // Sort in-memory by createdAt descending
+      items.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       onUpdate(items);
     },
     (error) => {

@@ -75,6 +75,8 @@ export const es = {
     categoryLabel: 'Categoría',
     adding: 'Añadiendo...',
     allCategories: 'Todos',
+    sharedWith: 'Compartida con',
+    autoCategory: '(Automática)',
   },
   categories: {
     'Fruit & Veg': 'Fruta y Verdura',

@@ -65,8 +65,7 @@ function RootNavigation() {
       <Stack.Screen
         name="list/[id]"
         options={{
-          title: 'List Details',
-          headerBackTitle: 'Lists',
+          headerShown: false,
         }}
       />
       <Stack.Screen
