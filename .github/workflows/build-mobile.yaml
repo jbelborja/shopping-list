@@ -66,12 +66,20 @@ jobs:
             "client": [
               {
                 "client_info": {
-                  "mobilesdk_app_id": "1:168502063525:android:com.jbelborja.shoppinglist",
+                  "mobilesdk_app_id": "1:168502063525:android:09c109fb4e07a51438f84c",
                   "android_client_info": {
                     "package_name": "com.jbelborja.shoppinglist"
                   }
                 },
                 "oauth_client": [
+                  {
+                    "client_id": "168502063525-3phsj205u6l8uos9rtbqbdglfia90qpm.apps.googleusercontent.com",
+                    "client_type": 1,
+                    "android_info": {
+                      "package_name": "com.jbelborja.shoppinglist",
+                      "certificate_hash": "1582a7c7ad504a329e7453d1863fd078b42cd88d"
+                    }
+                  },
                   {
                     "client_id": "168502063525-uu17f8mqq7mv9h6b9scpqu0h00i9glmq.apps.googleusercontent.com",
                     "client_type": 3
@@ -79,7 +87,7 @@ jobs:
                 ],
                 "api_key": [
                   {
-                    "current_key": "AIzaSyBfRIaDXen2D2NYvnwyENoZFF9aUEQGy9Q"
+                    "current_key": "AIzaSyBjInbO6dawCZES943NKDtihyZ2NG1LAbQ"
                   }
                 ],
                 "services": {

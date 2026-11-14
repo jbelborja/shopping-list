@@ -226,6 +226,7 @@ export function ShareListModal({
             <View className="flex-row items-center space-x-2">
               <View className="flex-1">
                 <Input
+                  className="mb-0"
                   placeholder={t('share.emailPlaceholder')}
                   value={emailToShare}
                   onChangeText={(tVal) => {
@@ -234,10 +235,10 @@ export function ShareListModal({
                   }}
                   autoCapitalize="none"
                   keyboardType="email-address"
-                  leftIcon="mail-outline"
+                  leftIcon={<Ionicons name="mail-outline" size={18} color="#818CF8" />}
                 />
               </View>
-              <View className="w-24">
+              <View className="shrink-0 min-w-[90px]">
                 <Button
                   title={t('share.inviteButton')}
                   onPress={handleShare}
@@ -245,6 +246,7 @@ export function ShareListModal({
                   disabled={submitting || !emailToShare.trim()}
                   variant="primary"
                   size="md"
+                  leftIcon={<Ionicons name="paper-plane-outline" size={15} color="#FFFFFF" />}
                 />
               </View>
             </View>
