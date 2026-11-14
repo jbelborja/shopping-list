@@ -5,7 +5,6 @@ import {
   FlatList,
   Pressable,
   Modal,
-  TextInput,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
@@ -14,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { ShoppingItem, ShoppingList, Category } from '@/types';
 import { CATEGORIES, suggestCategory } from '@/lib/categories';
+import { Button, Card, Badge, Input, EmptyState } from '@/components/ui';
 import {
   subscribeShoppingItems,
   addFirestoreListItem,
@@ -47,7 +47,6 @@ export default function ListDetailScreen() {
 
     setLoading(true);
 
-    // Subscribe to list details
     const unsubDoc = onSnapshot(shoppingListDoc(id), (snap) => {
       if (snap.exists()) {
         const data = snap.data();
@@ -57,14 +56,13 @@ export default function ListDetailScreen() {
           description: data.description,
           ownerId: data.ownerId,
           memberIds: data.memberIds,
-          color: data.color || '#E94560',
+          color: data.color || '#6366F1',
           createdAt: data.createdAt || Date.now(),
           updatedAt: data.updatedAt || Date.now(),
         });
       }
     });
 
-    // Subscribe to list items in real-time
     const unsubItems = subscribeShoppingItems(
       id,
       (fetchedItems) => {
@@ -134,22 +132,22 @@ export default function ListDetailScreen() {
   const totalCount = items.length;
 
   return (
-    <SafeAreaView className="flex-1 bg-[#1A1A2E]" edges={['left', 'right', 'bottom']}>
-      <View className="flex-1 px-5 pt-3 max-w-2xl w-full mx-auto">
+    <SafeAreaView className="flex-1 bg-slate-950" edges={['left', 'right', 'bottom']}>
+      <View className="flex-1 px-5 pt-2 max-w-2xl w-full mx-auto">
         {/* Header Bar */}
-        <View className="flex-row items-center justify-between pb-4 border-b border-[#2E3D60]/50 mb-4">
-          <View className="flex-row items-center flex-1 mr-2">
+        <View className="flex-row items-center justify-between pb-4 border-b border-slate-800/80 mb-4">
+          <View className="flex-row items-center flex-1 mr-3">
             <Pressable
               onPress={() => router.back()}
-              className="mr-3 p-2 -ml-2 rounded-xl active:bg-white/10"
+              className="mr-3 p-2 -ml-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 active:bg-slate-700 transition-colors"
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </Pressable>
             <View className="flex-1">
-              <Text className="text-white text-2xl font-bold tracking-tight" numberOfLines={1}>
+              <Text className="text-white text-xl font-bold tracking-tight" numberOfLines={1}>
                 {currentList?.name || 'Shopping List'}
               </Text>
-              <Text className="text-gray-400 text-xs mt-0.5">
+              <Text className="text-slate-400 text-xs mt-0.5">
                 {totalCount === 0
                   ? '0 items'
                   : `${completedCount} of ${totalCount} completed`}
@@ -159,42 +157,43 @@ export default function ListDetailScreen() {
 
           <View className="flex-row items-center space-x-2">
             {completedCount > 0 && (
-              <Pressable
+              <Button
+                title="Clear checked"
                 onPress={handleClearCompleted}
-                className="px-3 py-2 rounded-lg bg-[#2E3D60]/50 active:bg-[#2E3D60] mr-2"
-              >
-                <Text className="text-gray-300 text-xs font-medium">Clear done</Text>
-              </Pressable>
+                variant="ghost"
+                size="sm"
+                className="mr-2 text-slate-400"
+              />
             )}
-            <Pressable
+            <Button
+              title="Add Item"
               onPress={() => setModalVisible(true)}
-              className="bg-accent flex-row items-center px-3.5 py-2 rounded-xl active:bg-accentHover shadow-md"
-            >
-              <Ionicons name="add" size={18} color="#FFFFFF" />
-              <Text className="text-white font-bold text-xs ml-1">Add Item</Text>
-            </Pressable>
+              variant="primary"
+              size="sm"
+              leftIcon={<Ionicons name="add" size={16} color="#FFFFFF" />}
+            />
           </View>
         </View>
 
-        {/* Category Horizontal Filter */}
+        {/* Category Horizontal Filter Pills */}
         <View className="mb-4">
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
             className="flex-row"
-            contentContainerStyle={{ paddingVertical: 4 }}
+            contentContainerStyle={{ paddingVertical: 2 }}
           >
             <Pressable
               onPress={() => setFilterCategory('All')}
-              className={`px-3.5 py-1.5 rounded-full mr-2 border ${
+              className={`px-3.5 py-1.5 rounded-xl mr-2 border transition-all ${
                 filterCategory === 'All'
-                  ? 'bg-accent border-accent'
-                  : 'bg-[#16213E] border-[#2E3D60]'
+                  ? 'bg-indigo-600 border-indigo-500 shadow-sm shadow-indigo-600/30'
+                  : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
               }`}
             >
               <Text
                 className={`text-xs font-semibold ${
-                  filterCategory === 'All' ? 'text-white' : 'text-gray-400'
+                  filterCategory === 'All' ? 'text-white' : 'text-slate-400'
                 }`}
               >
                 All ({totalCount})
@@ -209,15 +208,15 @@ export default function ListDetailScreen() {
                 <Pressable
                   key={cat.label}
                   onPress={() => setFilterCategory(cat.label)}
-                  className={`px-3 py-1.5 rounded-full mr-2 border ${
+                  className={`px-3.5 py-1.5 rounded-xl mr-2 border transition-all ${
                     isSelected
-                      ? 'bg-accent border-accent'
-                      : 'bg-[#16213E] border-[#2E3D60]'
+                      ? 'bg-indigo-600 border-indigo-500 shadow-sm shadow-indigo-600/30'
+                      : 'bg-slate-900/80 border-slate-800 hover:border-slate-700'
                   }`}
                 >
                   <Text
                     className={`text-xs font-semibold ${
-                      isSelected ? 'text-white' : 'text-gray-400'
+                      isSelected ? 'text-white' : 'text-slate-400'
                     }`}
                   >
                     {cat.label} ({count})
@@ -230,24 +229,28 @@ export default function ListDetailScreen() {
 
         {/* Items List */}
         {loading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color="#E94560" />
-            <Text className="text-gray-400 text-sm mt-3">Loading items from Cloud...</Text>
+          <View className="flex-1 items-center justify-center py-20">
+            <ActivityIndicator size="large" color="#6366F1" />
+            <Text className="text-slate-400 text-sm mt-3 font-medium">Loading items...</Text>
           </View>
         ) : filteredItems.length === 0 ? (
-          <View className="flex-1 items-center justify-center px-4">
-            <View className="w-16 h-16 rounded-full bg-[#16213E] items-center justify-center mb-3">
-              <Ionicons name="basket-outline" size={30} color="#E94560" />
-            </View>
-            <Text className="text-white text-lg font-bold text-center">
-              {totalCount === 0 ? 'No items in this list' : 'No items in this category'}
-            </Text>
-            <Text className="text-gray-400 text-sm text-center mt-1 max-w-xs">
-              {totalCount === 0
-                ? 'Tap "Add Item" above to add products with auto-categorization.'
-                : 'Switch back to "All" to view your whole list.'}
-            </Text>
-          </View>
+          <EmptyState
+            icon="basket-outline"
+            title={totalCount === 0 ? 'No items in this list' : 'No items match this category'}
+            subtitle={
+              totalCount === 0
+                ? 'Tap "Add Item" above to add products with smart auto-categorization.'
+                : 'Switch back to "All" to view all items in this list.'
+            }
+            action={
+              totalCount === 0
+                ? {
+                    label: 'Add First Item',
+                    onPress: () => setModalVisible(true),
+                  }
+                : undefined
+            }
+          />
         ) : (
           <FlatList
             data={filteredItems}
@@ -260,8 +263,8 @@ export default function ListDetailScreen() {
                 <View
                   className={`flex-row items-center justify-between p-4 mb-3 rounded-2xl border transition-all ${
                     item.isChecked
-                      ? 'bg-[#16213E]/50 border-[#2E3D60]/40 opacity-60'
-                      : 'bg-[#16213E] border-[#2E3D60]'
+                      ? 'bg-slate-900/40 border-slate-800/40 opacity-50'
+                      : 'bg-slate-900/90 border-slate-800 shadow-sm hover:border-slate-700'
                   }`}
                 >
                   {/* Left: Checkbox & Name */}
@@ -270,51 +273,43 @@ export default function ListDetailScreen() {
                     className="flex-row items-center flex-1 mr-3"
                   >
                     <View
-                      className={`w-6 h-6 rounded-md items-center justify-center mr-3 border ${
+                      className={`w-6 h-6 rounded-lg items-center justify-center mr-3 border transition-colors ${
                         item.isChecked
-                          ? 'bg-accent border-accent'
-                          : 'border-gray-500 bg-transparent'
+                          ? 'bg-emerald-500 border-emerald-400'
+                          : 'border-slate-600 bg-slate-800/80 hover:border-indigo-400'
                       }`}
                     >
                       {item.isChecked && (
-                        <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                        <Ionicons name="checkmark-bold" size={14} color="#FFFFFF" />
                       )}
                     </View>
 
                     <View className="flex-1">
                       <Text
-                        className={`text-base font-semibold ${
+                        className={`text-base font-semibold tracking-tight ${
                           item.isChecked
-                            ? 'text-gray-400 line-through'
+                            ? 'text-slate-500 line-through'
                             : 'text-white'
                         }`}
                       >
                         {item.name}
                       </Text>
                       <View className="flex-row items-center mt-1">
-                        <View
-                          className="px-2 py-0.5 rounded-md"
-                          style={{
-                            backgroundColor: `${catInfo?.color || '#6B7280'}20`,
-                          }}
-                        >
-                          <Text
-                            className="text-[11px] font-medium"
-                            style={{ color: catInfo?.color || '#9CA3AF' }}
-                          >
-                            {item.category}
-                          </Text>
-                        </View>
+                        <Badge
+                          label={item.category}
+                          customColor={catInfo?.color || '#94A3B8'}
+                          size="sm"
+                        />
                       </View>
                     </View>
                   </Pressable>
 
                   {/* Right: Quantity Stepper & Delete */}
                   <View className="flex-row items-center">
-                    <View className="flex-row items-center bg-[#1A1A2E] rounded-xl border border-[#2E3D60] px-1 py-0.5 mr-2">
+                    <View className="flex-row items-center bg-slate-950 rounded-xl border border-slate-800 px-1 py-0.5 mr-2">
                       <Pressable
                         onPress={() => handleQuantity(item, -1)}
-                        className="w-7 h-7 items-center justify-center rounded-lg active:bg-white/10"
+                        className="w-7 h-7 items-center justify-center rounded-lg hover:bg-slate-800 active:bg-slate-700 transition-colors"
                       >
                         <Ionicons name="remove" size={14} color="#94A3B8" />
                       </Pressable>
@@ -323,7 +318,7 @@ export default function ListDetailScreen() {
                       </Text>
                       <Pressable
                         onPress={() => handleQuantity(item, 1)}
-                        className="w-7 h-7 items-center justify-center rounded-lg active:bg-white/10"
+                        className="w-7 h-7 items-center justify-center rounded-lg hover:bg-slate-800 active:bg-slate-700 transition-colors"
                       >
                         <Ionicons name="add" size={14} color="#94A3B8" />
                       </Pressable>
@@ -332,7 +327,7 @@ export default function ListDetailScreen() {
                     <Pressable
                       onPress={() => handleDelete(item.id)}
                       hitSlop={10}
-                      className="p-2 rounded-full hover:bg-white/10 active:bg-white/10"
+                      className="p-2 rounded-xl hover:bg-slate-800 active:bg-slate-700 transition-colors"
                     >
                       <Ionicons name="trash-outline" size={16} color="#94A3B8" />
                     </Pressable>
@@ -351,51 +346,55 @@ export default function ListDetailScreen() {
         animationType="fade"
         onRequestClose={() => setModalVisible(false)}
       >
-        <View className="flex-1 bg-black/70 items-center justify-center p-4">
-          <View className="bg-[#16213E] border border-[#2E3D60] rounded-2xl p-6 w-full max-w-md shadow-2xl">
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-white text-xl font-bold">Add Item</Text>
-              <Pressable onPress={() => setModalVisible(false)} className="p-1">
-                <Ionicons name="close" size={24} color="#94A3B8" />
+        <View className="flex-1 bg-black/80 items-center justify-center p-4">
+          <View className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-md shadow-2xl shadow-black/50">
+            <View className="flex-row items-center justify-between mb-5">
+              <View className="flex-row items-center">
+                <View className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 items-center justify-center mr-2.5">
+                  <Ionicons name="basket" size={18} color="#818CF8" />
+                </View>
+                <Text className="text-white text-lg font-bold">Add Item</Text>
+              </View>
+              <Pressable onPress={() => setModalVisible(false)} className="p-1 rounded-lg hover:bg-slate-800">
+                <Ionicons name="close" size={22} color="#94A3B8" />
               </Pressable>
             </View>
 
-            {/* Item Name */}
-            <Text className="text-gray-300 text-sm mb-1.5 font-medium">Item Name</Text>
-            <TextInput
+            <Input
+              label="Item Name"
               value={itemName}
               onChangeText={handleNameChange}
-              placeholder="e.g. Apples, Milk, Olive Oil"
-              placeholderTextColor="#64748B"
-              className="bg-[#1A1A2E] border border-[#2E3D60] text-white px-4 py-3 rounded-xl mb-4 font-normal"
+              placeholder="e.g. Organic Bananas, Sourdough Bread"
               autoFocus
             />
 
             {/* Quantity */}
-            <View className="flex-row items-center justify-between mb-4">
-              <Text className="text-gray-300 text-sm font-medium">Quantity</Text>
-              <View className="flex-row items-center bg-[#1A1A2E] rounded-xl border border-[#2E3D60] px-2 py-1">
+            <View className="flex-row items-center justify-between mb-4 bg-slate-950/60 border border-slate-800/80 rounded-2xl p-3">
+              <Text className="text-slate-300 text-xs font-semibold uppercase tracking-wider">
+                Quantity
+              </Text>
+              <View className="flex-row items-center bg-slate-900 rounded-xl border border-slate-800 px-2 py-1">
                 <Pressable
                   onPress={() => setItemQuantity((q) => Math.max(1, q - 1))}
-                  className="w-8 h-8 items-center justify-center rounded-lg active:bg-white/10"
+                  className="w-7 h-7 items-center justify-center rounded-lg hover:bg-slate-800 active:bg-slate-700 transition-colors"
                 >
-                  <Ionicons name="remove" size={16} color="#FFFFFF" />
+                  <Ionicons name="remove" size={14} color="#FFFFFF" />
                 </Pressable>
-                <Text className="text-white text-base font-bold px-4">
+                <Text className="text-white text-sm font-bold px-3">
                   {itemQuantity}
                 </Text>
                 <Pressable
                   onPress={() => setItemQuantity((q) => q + 1)}
-                  className="w-8 h-8 items-center justify-center rounded-lg active:bg-white/10"
+                  className="w-7 h-7 items-center justify-center rounded-lg hover:bg-slate-800 active:bg-slate-700 transition-colors"
                 >
-                  <Ionicons name="add" size={16} color="#FFFFFF" />
+                  <Ionicons name="add" size={14} color="#FFFFFF" />
                 </Pressable>
               </View>
             </View>
 
             {/* Category selection */}
-            <Text className="text-gray-300 text-sm mb-2 font-medium">
-              Category {!userSelectedCategory && itemName ? '(Auto-detected)' : ''}
+            <Text className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-2">
+              Category {!userSelectedCategory && itemName ? '(Auto-suggested)' : ''}
             </Text>
             <View className="flex-row flex-wrap gap-2 mb-6">
               {CATEGORIES.map((cat) => {
@@ -407,15 +406,15 @@ export default function ListDetailScreen() {
                       setSelectedCategory(cat.label);
                       setUserSelectedCategory(true);
                     }}
-                    className={`px-3 py-1.5 rounded-xl border ${
+                    className={`px-3 py-1.5 rounded-xl border transition-all ${
                       isSelected
-                        ? 'bg-accent border-accent'
-                        : 'bg-[#1A1A2E] border-[#2E3D60]'
+                        ? 'bg-indigo-600 border-indigo-500 shadow-sm shadow-indigo-600/30'
+                        : 'bg-slate-950 border-slate-800 hover:border-slate-700'
                     }`}
                   >
                     <Text
                       className={`text-xs font-semibold ${
-                        isSelected ? 'text-white' : 'text-gray-300'
+                        isSelected ? 'text-white' : 'text-slate-400'
                       }`}
                     >
                       {cat.label}
@@ -427,23 +426,21 @@ export default function ListDetailScreen() {
 
             {/* Action buttons */}
             <View className="flex-row justify-end space-x-3">
-              <Pressable
+              <Button
+                title="Cancel"
                 onPress={() => setModalVisible(false)}
-                className="px-5 py-3 rounded-xl bg-transparent active:bg-white/5 mr-2"
-              >
-                <Text className="text-gray-400 font-semibold">Cancel</Text>
-              </Pressable>
-              <Pressable
+                variant="ghost"
+                size="md"
+                className="mr-2"
+              />
+              <Button
+                title={submitting ? 'Adding...' : 'Add Item'}
                 onPress={handleAddItem}
                 disabled={submitting || !itemName.trim()}
-                className={`px-6 py-3 rounded-xl bg-accent ${
-                  !itemName.trim() ? 'opacity-50' : 'active:bg-accentHover'
-                }`}
-              >
-                <Text className="text-white font-bold">
-                  {submitting ? 'Adding...' : 'Add Item'}
-                </Text>
-              </Pressable>
+                loading={submitting}
+                variant="primary"
+                size="md"
+              />
             </View>
           </View>
         </View>

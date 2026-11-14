@@ -2,9 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   Pressable,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,6 +10,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Button, Input } from '@/components/ui';
 import { signInWithEmail, signUpWithEmail, useGoogleAuth } from '@/lib/auth';
 
 export default function LoginScreen() {
@@ -65,36 +64,36 @@ export default function LoginScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#1A1A2E]">
+    <SafeAreaView className="flex-1 bg-slate-950">
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
       >
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-          className="px-6 py-8"
+          className="px-5 py-10"
         >
-          <View className="max-w-md w-full mx-auto bg-[#16213E] border border-[#2E3D60] rounded-3xl p-8 shadow-2xl">
-            {/* Header / Brand */}
+          <View className="max-w-md w-full mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-black/40">
+            {/* Logo / Header */}
             <View className="items-center mb-8">
-              <View className="w-16 h-16 rounded-2xl bg-accent/20 border border-accent/40 items-center justify-center mb-4">
-                <Ionicons name="cart" size={32} color="#E94560" />
+              <View className="w-16 h-16 rounded-2xl bg-indigo-600/15 border border-indigo-500/30 items-center justify-center mb-4 shadow-inner">
+                <Ionicons name="cart" size={32} color="#818CF8" />
               </View>
               <Text className="text-white text-2xl font-black tracking-tight text-center">
                 Shopping List
               </Text>
-              <Text className="text-gray-400 text-sm mt-1 text-center">
+              <Text className="text-slate-400 text-sm mt-1 text-center">
                 {isSignUp
-                  ? 'Create an account to sync your lists'
-                  : 'Sign in to access your shopping lists'}
+                  ? 'Create an account to collaborate on lists'
+                  : 'Welcome back! Sign in to sync your lists'}
               </Text>
             </View>
 
             {/* Error Message */}
             {(error || googleError) && (
-              <View className="bg-red-500/15 border border-red-500/30 rounded-xl p-3 mb-5 flex-row items-center">
-                <Ionicons name="alert-circle" size={18} color="#EF4444" />
-                <Text className="text-red-400 text-xs ml-2 flex-1">
+              <View className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-3.5 mb-5 flex-row items-center">
+                <Ionicons name="alert-circle" size={18} color="#F43F5E" />
+                <Text className="text-rose-400 text-xs ml-2.5 flex-1 leading-4">
                   {error || googleError}
                 </Text>
               </View>
@@ -102,98 +101,71 @@ export default function LoginScreen() {
 
             {/* Form Fields */}
             {isSignUp && (
-              <View className="mb-4">
-                <Text className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                  Your Name
-                </Text>
-                <TextInput
-                  value={displayName}
-                  onChangeText={setDisplayName}
-                  placeholder="e.g. Alex"
-                  placeholderTextColor="#64748B"
-                  className="bg-[#1A1A2E] border border-[#2E3D60] text-white px-4 py-3 rounded-xl font-normal"
-                />
-              </View>
+              <Input
+                label="Full Name"
+                value={displayName}
+                onChangeText={setDisplayName}
+                placeholder="e.g. Alex Smith"
+                leftIcon={<Ionicons name="person-outline" size={18} color="#64748B" />}
+              />
             )}
 
-            <View className="mb-4">
-              <Text className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                Email
-              </Text>
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="name@example.com"
-                placeholderTextColor="#64748B"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                className="bg-[#1A1A2E] border border-[#2E3D60] text-white px-4 py-3 rounded-xl font-normal"
-              />
-            </View>
+            <Input
+              label="Email"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="alex@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              leftIcon={<Ionicons name="mail-outline" size={18} color="#64748B" />}
+            />
 
-            <View className="mb-6">
-              <Text className="text-gray-300 text-xs font-semibold uppercase tracking-wider mb-1.5">
-                Password
-              </Text>
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="••••••••"
-                placeholderTextColor="#64748B"
-                secureTextEntry
-                className="bg-[#1A1A2E] border border-[#2E3D60] text-white px-4 py-3 rounded-xl font-normal"
-              />
-            </View>
+            <Input
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry
+              leftIcon={<Ionicons name="lock-closed-outline" size={18} color="#64748B" />}
+            />
 
             {/* Submit Button */}
-            <Pressable
+            <Button
+              title={isSignUp ? 'Create Account' : 'Sign In'}
               onPress={handleEmailAuth}
-              disabled={loading || googleLoading}
-              className={`bg-accent py-3.5 rounded-xl items-center mb-4 active:bg-accentHover shadow-md ${
-                loading ? 'opacity-70' : ''
-              }`}
-            >
-              {loading ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <Text className="text-white font-bold text-base">
-                  {isSignUp ? 'Create Account' : 'Sign In'}
-                </Text>
-              )}
-            </Pressable>
+              loading={loading}
+              disabled={googleLoading}
+              variant="primary"
+              size="lg"
+              className="w-full mt-2"
+            />
 
             {/* Divider */}
-            <View className="flex-row items-center my-4">
-              <View className="flex-1 h-[1px] bg-[#2E3D60]" />
-              <Text className="text-gray-400 text-xs px-3 uppercase tracking-wider">or</Text>
-              <View className="flex-1 h-[1px] bg-[#2E3D60]" />
+            <View className="flex-row items-center my-5">
+              <View className="flex-1 h-[1px] bg-slate-800" />
+              <Text className="text-slate-500 text-xs px-3 uppercase tracking-wider font-medium">or</Text>
+              <View className="flex-1 h-[1px] bg-slate-800" />
             </View>
 
             {/* Google Sign In */}
-            <Pressable
+            <Button
+              title="Continue with Google"
               onPress={handleGoogleSignIn}
-              disabled={loading || googleLoading}
-              className="bg-[#1A1A2E] border border-[#2E3D60] py-3 rounded-xl flex-row items-center justify-center mb-6 active:bg-white/5"
-            >
-              {googleLoading ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <>
-                  <Ionicons name="logo-google" size={18} color="#FFFFFF" />
-                  <Text className="text-white font-semibold text-sm ml-2.5">
-                    Continue with Google
-                  </Text>
-                </>
-              )}
-            </Pressable>
+              loading={googleLoading}
+              disabled={loading}
+              variant="outline"
+              size="md"
+              leftIcon={<Ionicons name="logo-google" size={18} color="#818CF8" />}
+              className="w-full border-slate-700 bg-slate-800/40 hover:bg-slate-800"
+            />
 
             {/* Toggle Sign Up / Sign In */}
-            <View className="flex-row items-center justify-center">
-              <Text className="text-gray-400 text-xs mr-1">
+            <View className="flex-row items-center justify-center mt-6 pt-4 border-t border-slate-800/60">
+              <Text className="text-slate-400 text-xs mr-1.5">
                 {isSignUp ? 'Already have an account?' : "Don't have an account?"}
               </Text>
               <Pressable onPress={() => setIsSignUp(!isSignUp)} hitSlop={8}>
-                <Text className="text-accent font-bold text-xs">
+                <Text className="text-indigo-400 font-bold text-xs hover:underline">
                   {isSignUp ? 'Sign In' : 'Sign Up'}
                 </Text>
               </Pressable>

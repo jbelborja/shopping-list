@@ -26,8 +26,8 @@ function RootNavigation() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#1A1A2E', alignItems: 'center', justifyContent: 'center' }}>
-        <ActivityIndicator size="large" color="#E94560" />
+      <View style={{ flex: 1, backgroundColor: '#0F172A', alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator size="large" color="#6366F1" />
       </View>
     );
   }
@@ -36,14 +36,15 @@ function RootNavigation() {
     <Stack
       screenOptions={{
         headerStyle: {
-          backgroundColor: '#16213E',
+          backgroundColor: '#0F172A',
         },
         headerTintColor: '#FFFFFF',
         headerTitleStyle: {
-          fontWeight: 'bold',
+          fontWeight: '700',
         },
+        headerShadowVisible: false,
         contentStyle: {
-          backgroundColor: '#1A1A2E',
+          backgroundColor: '#0F172A',
         },
       }}
     >
@@ -80,7 +81,7 @@ function RootNavigation() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" backgroundColor="#1A1A2E" />
+      <StatusBar style="light" backgroundColor="#0F172A" />
       <RootNavigation />
     </SafeAreaProvider>
   );
