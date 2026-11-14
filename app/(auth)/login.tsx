@@ -11,10 +11,13 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input } from '@/components/ui';
+import { LanguageToggle } from '@/components/LanguageToggle';
+import { useTranslation } from '@/lib/i18n';
 import { signInWithEmail, signUpWithEmail, useGoogleAuth } from '@/lib/auth';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
   const [isSignUp, setIsSignUp] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
@@ -27,12 +30,12 @@ export default function LoginScreen() {
   const handleEmailAuth = async () => {
     setError(null);
     if (!email.trim() || !password) {
-      setError('Please fill in both email and password.');
+      setError(t('auth.fillEmailPassword'));
       return;
     }
 
     if (isSignUp && !displayName.trim()) {
-      setError('Please provide your name.');
+      setError(t('auth.provideName'));
       return;
     }
 
@@ -45,7 +48,7 @@ export default function LoginScreen() {
       }
       router.replace('/');
     } catch (err: any) {
-      setError(err.message || 'Authentication failed');
+      setError(err.message || t('auth.authFailed'));
     } finally {
       setLoading(false);
     }
@@ -59,7 +62,7 @@ export default function LoginScreen() {
         router.replace('/');
       }
     } catch (err: any) {
-      setError(err.message || 'Google sign-in failed');
+      setError(err.message || t('auth.authFailed'));
     }
   };
 
@@ -69,9 +72,14 @@ export default function LoginScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         className="flex-1"
       >
+        {/* Top bar with Language Selector */}
+        <View className="flex-row justify-end px-5 pt-3">
+          <LanguageToggle />
+        </View>
+
         <ScrollView
           contentContainerStyle={{ flexGrow: 1, justifyContent: 'center' }}
-          className="px-5 py-10"
+          className="px-5 py-6"
         >
           <View className="max-w-md w-full mx-auto bg-slate-900/90 border border-slate-800 rounded-3xl p-8 shadow-2xl shadow-black/40">
             {/* Logo / Header */}
@@ -80,12 +88,10 @@ export default function LoginScreen() {
                 <Ionicons name="cart" size={32} color="#818CF8" />
               </View>
               <Text className="text-white text-2xl font-black tracking-tight text-center">
-                Shopping List
+                {t('auth.appName')}
               </Text>
               <Text className="text-slate-400 text-sm mt-1 text-center">
-                {isSignUp
-                  ? 'Create an account to collaborate on lists'
-                  : 'Welcome back! Sign in to sync your lists'}
+                {t('auth.tagline')}
               </Text>
             </View>
 
@@ -102,36 +108,36 @@ export default function LoginScreen() {
             {/* Form Fields */}
             {isSignUp && (
               <Input
-                label="Full Name"
+                label={t('auth.fullName')}
                 value={displayName}
                 onChangeText={setDisplayName}
-                placeholder="e.g. Alex Smith"
+                placeholder={t('auth.fullNamePlaceholder')}
                 leftIcon={<Ionicons name="person-outline" size={18} color="#64748B" />}
               />
             )}
 
             <Input
-              label="Email"
+              label={t('auth.email')}
               value={email}
               onChangeText={setEmail}
-              placeholder="alex@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               keyboardType="email-address"
               autoCapitalize="none"
               leftIcon={<Ionicons name="mail-outline" size={18} color="#64748B" />}
             />
 
             <Input
-              label="Password"
+              label={t('auth.password')}
               value={password}
               onChangeText={setPassword}
-              placeholder="••••••••"
+              placeholder={t('auth.passwordPlaceholder')}
               secureTextEntry
               leftIcon={<Ionicons name="lock-closed-outline" size={18} color="#64748B" />}
             />
 
             {/* Submit Button */}
             <Button
-              title={isSignUp ? 'Create Account' : 'Sign In'}
+              title={isSignUp ? t('auth.signUp') : t('auth.signIn')}
               onPress={handleEmailAuth}
               loading={loading}
               disabled={googleLoading}
@@ -143,13 +149,15 @@ export default function LoginScreen() {
             {/* Divider */}
             <View className="flex-row items-center my-5">
               <View className="flex-1 h-[1px] bg-slate-800" />
-              <Text className="text-slate-500 text-xs px-3 uppercase tracking-wider font-medium">or</Text>
+              <Text className="text-slate-500 text-xs px-3 uppercase tracking-wider font-medium">
+                {t('common.or')}
+              </Text>
               <View className="flex-1 h-[1px] bg-slate-800" />
             </View>
 
             {/* Google Sign In */}
             <Button
-              title="Continue with Google"
+              title={t('auth.continueWithGoogle')}
               onPress={handleGoogleSignIn}
               loading={googleLoading}
               disabled={loading}
@@ -162,11 +170,11 @@ export default function LoginScreen() {
             {/* Toggle Sign Up / Sign In */}
             <View className="flex-row items-center justify-center mt-6 pt-4 border-t border-slate-800/60">
               <Text className="text-slate-400 text-xs mr-1.5">
-                {isSignUp ? 'Already have an account?' : "Don't have an account?"}
+                {isSignUp ? t('auth.alreadyHaveAccount') : t('auth.noAccount')}
               </Text>
               <Pressable onPress={() => setIsSignUp(!isSignUp)} hitSlop={8}>
                 <Text className="text-indigo-400 font-bold text-xs hover:underline">
-                  {isSignUp ? 'Sign In' : 'Sign Up'}
+                  {isSignUp ? t('auth.signIn') : t('auth.signUp')}
                 </Text>
               </Pressable>
             </View>

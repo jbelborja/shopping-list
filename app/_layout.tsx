@@ -6,6 +6,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
+import { LanguageProvider } from '@/lib/i18n';
 
 function RootNavigation() {
   const { firebaseUser, loading } = useAuth();
@@ -81,8 +82,10 @@ function RootNavigation() {
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <StatusBar style="light" backgroundColor="#0F172A" />
-      <RootNavigation />
+      <LanguageProvider>
+        <StatusBar style="light" backgroundColor="#0F172A" />
+        <RootNavigation />
+      </LanguageProvider>
     </SafeAreaProvider>
   );
 }

@@ -16,6 +16,8 @@ import { ShoppingList, ShoppingItem } from '@/types';
 import { useAuth } from '@/hooks/useAuth';
 import { logOut } from '@/lib/auth';
 import { Button, Card, Input, EmptyState, Badge } from '@/components/ui';
+import { LanguageToggle } from '@/components/LanguageToggle';
+import { useTranslation } from '@/lib/i18n';
 import {
   subscribeShoppingLists,
   createFirestoreList,
@@ -27,6 +29,7 @@ import {
 export default function ListsScreen() {
   const router = useRouter();
   const { user, firebaseUser } = useAuth();
+  const { t, formatDate } = useTranslation();
 
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [itemsMap, setItemsMap] = useState<Record<string, ShoppingItem[]>>({});
@@ -85,34 +88,36 @@ export default function ListsScreen() {
   };
 
   const confirmDelete = (list: ShoppingList) => {
+    const confirmMsg = t('lists.deleteConfirmMessage', { name: list.name });
     if (Platform.OS === 'web') {
-      if (window.confirm(`Are you sure you want to delete "${list.name}"?`)) {
+      if (window.confirm(confirmMsg)) {
         handleDeleteList(list.id);
       }
     } else {
       Alert.alert(
-        'Delete List',
-        `Are you sure you want to delete "${list.name}"?`,
+        t('lists.deleteConfirmTitle'),
+        confirmMsg,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: () => handleDeleteList(list.id) },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.delete'), style: 'destructive', onPress: () => handleDeleteList(list.id) },
         ]
       );
     }
   };
 
   const confirmLeave = (list: ShoppingList) => {
+    const confirmMsg = t('lists.leaveConfirmMessage', { name: list.name });
     if (Platform.OS === 'web') {
-      if (window.confirm(`Leave list "${list.name}"? It will no longer appear in your lists.`)) {
+      if (window.confirm(confirmMsg)) {
         handleLeaveList(list.id);
       }
     } else {
       Alert.alert(
-        'Leave List',
-        `Are you sure you want to leave "${list.name}"?`,
+        t('lists.leaveConfirmTitle'),
+        confirmMsg,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Leave', style: 'destructive', onPress: () => handleLeaveList(list.id) },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.done'), style: 'destructive', onPress: () => handleLeaveList(list.id) },
         ]
       );
     }
@@ -137,13 +142,13 @@ export default function ListsScreen() {
 
   const handleSignOut = async () => {
     if (Platform.OS === 'web') {
-      if (window.confirm('Do you want to sign out?')) {
+      if (window.confirm(t('lists.signOutConfirmMessage'))) {
         await logOut();
       }
     } else {
-      Alert.alert('Sign Out', 'Do you want to sign out?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: () => logOut() },
+      Alert.alert(t('lists.signOutConfirmTitle'), t('lists.signOutConfirmMessage'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('lists.signOut'), style: 'destructive', onPress: () => logOut() },
       ]);
     }
   };
@@ -178,18 +183,18 @@ export default function ListsScreen() {
                 {item.name}
               </Text>
               {isAllDone && (
-                <Badge label="Completed" variant="success" size="sm" />
+                <Badge label={t('lists.completed')} variant="success" size="sm" />
               )}
               {!isOwner && (
                 <Badge
-                  label={`Shared by ${item.ownerEmail || 'owner'}`}
+                  label={t('lists.sharedWithMe', { owner: item.ownerEmail || 'colaborador' })}
                   variant="neutral"
                   size="sm"
                 />
               )}
               {isOwner && memberCount > 1 && (
                 <Badge
-                  label={`Shared (${memberCount - 1})`}
+                  label={t('lists.sharedCount', { count: memberCount - 1 })}
                   variant="info"
                   size="sm"
                 />
@@ -225,7 +230,7 @@ export default function ListsScreen() {
         <View className="mt-2 pt-3 border-t border-slate-800/60">
           <View className="flex-row justify-between items-center mb-2">
             <Text className="text-slate-400 text-xs font-medium">
-              {total === 0 ? 'Empty list' : `${completed} of ${total} items checked`}
+              {total === 0 ? t('lists.emptyList') : t('lists.progress', { completed, total })}
             </Text>
             <Text className="text-indigo-400 text-xs font-semibold">
               {Math.round(progress)}%
@@ -245,13 +250,10 @@ export default function ListsScreen() {
         {/* Card Footer */}
         <View className="flex-row items-center justify-between mt-4 pt-3 border-t border-slate-800/60">
           <Text className="text-slate-500 text-[11px]">
-            {new Date(item.createdAt).toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-            })}
+            {formatDate(item.createdAt)}
           </Text>
           <View className="flex-row items-center">
-            <Text className="text-indigo-400 text-xs font-semibold mr-1">Open list</Text>
+            <Text className="text-indigo-400 text-xs font-semibold mr-1">{t('lists.openList')}</Text>
             <Ionicons name="arrow-forward" size={14} color="#818CF8" />
           </View>
         </View>
@@ -272,7 +274,7 @@ export default function ListsScreen() {
             </View>
             <View className="flex-1">
               <Text className="text-white text-base font-bold tracking-tight" numberOfLines={1}>
-                {user?.displayName || 'My Shopping'}
+                {user?.displayName || t('lists.myShopping')}
               </Text>
               <Text className="text-slate-400 text-xs" numberOfLines={1}>
                 {firebaseUser?.email || ''}
@@ -281,19 +283,20 @@ export default function ListsScreen() {
           </View>
 
           <View className="flex-row items-center space-x-2">
+            <LanguageToggle />
             <Button
-              title="New List"
+              title={t('lists.newList')}
               onPress={() => setModalVisible(true)}
               variant="primary"
               size="sm"
               leftIcon={<Ionicons name="add" size={16} color="#FFFFFF" />}
-              className="mr-2"
+              className="mr-1"
             />
             <Pressable
               onPress={handleSignOut}
               hitSlop={10}
               className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 active:bg-slate-700 transition-colors"
-              title="Sign Out"
+              accessibilityLabel={t('lists.signOut')}
             >
               <Ionicons name="log-out-outline" size={18} color="#94A3B8" />
             </Pressable>
@@ -305,7 +308,7 @@ export default function ListsScreen() {
           <View className="flex-row gap-3 mb-5">
             <View className="flex-1 bg-slate-900/70 border border-slate-800/70 rounded-2xl p-3.5">
               <Text className="text-slate-400 text-xs font-medium uppercase tracking-wider">
-                Lists
+                {t('lists.title')}
               </Text>
               <Text className="text-white text-2xl font-black mt-1">
                 {lists.length}
@@ -313,7 +316,7 @@ export default function ListsScreen() {
             </View>
             <View className="flex-1 bg-slate-900/70 border border-slate-800/70 rounded-2xl p-3.5">
               <Text className="text-slate-400 text-xs font-medium uppercase tracking-wider">
-                Items Checked
+                {t('lists.completed')}
               </Text>
               <Text className="text-emerald-400 text-2xl font-black mt-1">
                 {totalCompletedCount}
@@ -327,15 +330,15 @@ export default function ListsScreen() {
         {loading ? (
           <View className="flex-1 items-center justify-center py-20">
             <ActivityIndicator size="large" color="#6366F1" />
-            <Text className="text-slate-400 text-sm mt-3 font-medium">Syncing with Cloud...</Text>
+            <Text className="text-slate-400 text-sm mt-3 font-medium">{t('common.loading')}</Text>
           </View>
         ) : lists.length === 0 ? (
           <EmptyState
             icon="basket-outline"
-            title="No Shopping Lists Yet"
-            subtitle="Create your first shopping list to track items and collaborate in real time."
+            title={t('lists.emptyTitle')}
+            subtitle={t('lists.emptySubtitle')}
             action={{
-              label: 'Create First List',
+              label: t('lists.createButton'),
               onPress: () => setModalVisible(true),
             }}
           />
@@ -364,7 +367,7 @@ export default function ListsScreen() {
                 <View className="w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-500/30 items-center justify-center mr-2.5">
                   <Ionicons name="list" size={18} color="#818CF8" />
                 </View>
-                <Text className="text-white text-lg font-bold">New Shopping List</Text>
+                <Text className="text-white text-lg font-bold">{t('lists.createModalTitle')}</Text>
               </View>
               <Pressable onPress={() => setModalVisible(false)} className="p-1 rounded-lg hover:bg-slate-800">
                 <Ionicons name="close" size={22} color="#94A3B8" />
@@ -372,30 +375,30 @@ export default function ListsScreen() {
             </View>
 
             <Input
-              label="List Title"
+              label={t('lists.nameLabel')}
               value={newListName}
               onChangeText={setNewListName}
-              placeholder="e.g. Weekly Groceries, BBQ Party"
+              placeholder={t('lists.namePlaceholder')}
               autoFocus
             />
 
             <Input
-              label="Description (Optional)"
+              label={t('lists.descLabel')}
               value={newListDesc}
               onChangeText={setNewListDesc}
-              placeholder="e.g. Essentials for the weekend"
+              placeholder={t('lists.descPlaceholder')}
             />
 
             <View className="flex-row justify-end space-x-3 mt-4">
               <Button
-                title="Cancel"
+                title={t('common.cancel')}
                 onPress={() => setModalVisible(false)}
                 variant="ghost"
                 size="md"
                 className="mr-2"
               />
               <Button
-                title={creating ? 'Creating...' : 'Create List'}
+                title={creating ? t('lists.creating') : t('lists.createButton')}
                 onPress={handleCreateList}
                 disabled={creating || !newListName.trim()}
                 loading={creating}

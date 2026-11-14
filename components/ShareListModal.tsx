@@ -12,6 +12,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { ShoppingList } from '@/types';
 import { Button, Input, Badge } from './ui';
+import { useTranslation } from '@/lib/i18n';
 import {
   shareListWithEmail,
   removeMemberFromList,
@@ -35,6 +36,7 @@ export function ShareListModal({
   currentUserEmail,
   onListLeft,
 }: ShareListModalProps) {
+  const { t } = useTranslation();
   const [emailToShare, setEmailToShare] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [removingEmail, setRemovingEmail] = useState<string | null>(null);
@@ -63,22 +65,22 @@ export function ShareListModal({
     setFeedback(null);
 
     if (!trimmed) {
-      setFeedback({ type: 'error', message: 'Please enter an email address.' });
+      setFeedback({ type: 'error', message: t('share.enterEmail') });
       return;
     }
 
     if (!trimmed.includes('@') || !trimmed.includes('.')) {
-      setFeedback({ type: 'error', message: 'Please enter a valid email address.' });
+      setFeedback({ type: 'error', message: t('share.invalidEmail') });
       return;
     }
 
     if (trimmed === ownerEmail || trimmed === currentEmailNorm) {
-      setFeedback({ type: 'error', message: 'You are already a member of this list.' });
+      setFeedback({ type: 'error', message: t('share.cannotInviteSelf') });
       return;
     }
 
     if (memberEmails.includes(trimmed)) {
-      setFeedback({ type: 'error', message: 'This user is already a member.' });
+      setFeedback({ type: 'error', message: t('share.alreadyMember') });
       return;
     }
 
@@ -90,7 +92,7 @@ export function ShareListModal({
     } catch (err: any) {
       setFeedback({
         type: 'error',
-        message: err.message || 'Failed to share list.',
+        message: err.message || t('share.shareError'),
       });
     } finally {
       setSubmitting(false);
@@ -98,17 +100,18 @@ export function ShareListModal({
   };
 
   const confirmRemove = (targetEmail: string) => {
+    const confirmMsg = t('share.confirmRemoveMessage', { email: targetEmail });
     if (Platform.OS === 'web') {
-      if (window.confirm(`Remove ${targetEmail} from this list?`)) {
+      if (window.confirm(confirmMsg)) {
         handleRemove(targetEmail);
       }
     } else {
       Alert.alert(
-        'Remove Member',
-        `Are you sure you want to remove ${targetEmail} from this list?`,
+        t('share.confirmRemoveTitle'),
+        confirmMsg,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Remove', style: 'destructive', onPress: () => handleRemove(targetEmail) },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.delete'), style: 'destructive', onPress: () => handleRemove(targetEmail) },
         ]
       );
     }
@@ -118,11 +121,11 @@ export function ShareListModal({
     setRemovingEmail(targetEmail);
     try {
       await removeMemberFromList(list.id, targetEmail);
-      setFeedback({ type: 'success', message: `Removed ${targetEmail}` });
+      setFeedback({ type: 'success', message: t('share.removedSuccess', { email: targetEmail }) });
     } catch (err: any) {
       setFeedback({
         type: 'error',
-        message: err.message || 'Failed to remove member.',
+        message: err.message || t('share.removeError'),
       });
     } finally {
       setRemovingEmail(null);
@@ -130,17 +133,18 @@ export function ShareListModal({
   };
 
   const confirmLeave = () => {
+    const confirmMsg = t('share.confirmLeaveMessage', { name: list.name });
     if (Platform.OS === 'web') {
-      if (window.confirm(`Leave list "${list.name}"? It will no longer appear in your lists.`)) {
+      if (window.confirm(confirmMsg)) {
         handleLeave();
       }
     } else {
       Alert.alert(
-        'Leave List',
-        `Are you sure you want to leave "${list.name}"?`,
+        t('share.confirmLeaveTitle'),
+        confirmMsg,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Leave', style: 'destructive', onPress: handleLeave },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('common.done'), style: 'destructive', onPress: handleLeave },
         ]
       );
     }
@@ -155,7 +159,7 @@ export function ShareListModal({
     } catch (err: any) {
       setFeedback({
         type: 'error',
-        message: err.message || 'Failed to leave list.',
+        message: err.message || t('share.leaveError'),
       });
     }
   };
@@ -176,7 +180,7 @@ export function ShareListModal({
                 <Ionicons name="people" size={20} color="#818CF8" />
               </View>
               <View>
-                <Text className="text-xl font-bold text-slate-100">Share List</Text>
+                <Text className="text-xl font-bold text-slate-100">{t('share.title')}</Text>
                 <Text className="text-xs text-slate-400" numberOfLines={1}>
                   {list.name}
                 </Text>
@@ -214,18 +218,18 @@ export function ShareListModal({
             </View>
           )}
 
-          {/* Add collaborator form (only owners can add, or all members can invite) */}
+          {/* Add collaborator form */}
           <View className="mt-5">
             <Text className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-              Invite by Email
+              {t('share.inviteByEmail')}
             </Text>
             <View className="flex-row items-center space-x-2">
               <View className="flex-1">
                 <Input
-                  placeholder="collaborator@example.com"
+                  placeholder={t('share.emailPlaceholder')}
                   value={emailToShare}
-                  onChangeText={(t) => {
-                    setEmailToShare(t);
+                  onChangeText={(tVal) => {
+                    setEmailToShare(tVal);
                     if (feedback) setFeedback(null);
                   }}
                   autoCapitalize="none"
@@ -235,7 +239,7 @@ export function ShareListModal({
               </View>
               <View className="w-24">
                 <Button
-                  title="Invite"
+                  title={t('share.inviteButton')}
                   onPress={handleShare}
                   loading={submitting}
                   disabled={submitting || !emailToShare.trim()}
@@ -250,7 +254,7 @@ export function ShareListModal({
           <View className="mt-6">
             <View className="flex-row items-center justify-between mb-2">
               <Text className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                Members ({memberEmails.length})
+                {t('share.membersTitle', { count: memberEmails.length })}
               </Text>
             </View>
 
@@ -286,7 +290,7 @@ export function ShareListModal({
                           </Text>
                           {isCurrentUser && (
                             <Text className="text-[11px] text-indigo-400 font-medium">
-                              (You)
+                              {t('share.you')}
                             </Text>
                           )}
                         </View>
@@ -294,7 +298,7 @@ export function ShareListModal({
 
                       <View className="flex-row items-center space-x-2">
                         {isThisOwner ? (
-                          <Badge label="Owner" variant="warning" size="sm" />
+                          <Badge label={t('share.ownerBadge')} variant="warning" size="sm" />
                         ) : isOwner ? (
                           <Pressable
                             onPress={() => confirmRemove(email)}
@@ -308,7 +312,7 @@ export function ShareListModal({
                             )}
                           </Pressable>
                         ) : (
-                          <Badge label="Member" variant="neutral" size="sm" />
+                          <Badge label={t('share.memberBadge')} variant="neutral" size="sm" />
                         )}
                       </View>
                     </View>
@@ -322,7 +326,7 @@ export function ShareListModal({
           <View className="mt-6 pt-4 border-t border-slate-800 flex-row justify-between items-center">
             {!isOwner ? (
               <Button
-                title="Leave List"
+                title={t('share.leaveButton')}
                 variant="danger"
                 size="sm"
                 icon="log-out-outline"
@@ -330,11 +334,11 @@ export function ShareListModal({
               />
             ) : (
               <Text className="text-xs text-slate-500">
-                You are the owner of this list.
+                {t('share.ownerNote')}
               </Text>
             )}
             <Button
-              title="Done"
+              title={t('common.done')}
               variant="outline"
               size="sm"
               onPress={onClose}
