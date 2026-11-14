@@ -7,6 +7,10 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useAuth } from '@/hooks/useAuth';
 import { LanguageProvider } from '@/lib/i18n';
+import {
+  registerForPushNotificationsAsync,
+  setupNotificationResponseListener,
+} from '@/lib/notifications';
 
 function RootNavigation() {
   const { firebaseUser, loading } = useAuth();
@@ -24,6 +28,22 @@ function RootNavigation() {
       router.replace('/');
     }
   }, [firebaseUser, loading, segments, router]);
+
+  useEffect(() => {
+    if (!firebaseUser) return;
+
+    registerForPushNotificationsAsync(firebaseUser.uid);
+
+    const unsubscribe = setupNotificationResponseListener((url) => {
+      if (url) {
+        router.push(url as any);
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [firebaseUser, router]);
 
   if (loading) {
     return (

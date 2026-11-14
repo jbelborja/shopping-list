@@ -121,7 +121,16 @@ export default function ListDetailScreen() {
     setModalVisible(false);
 
     try {
-      const newItemId = await addFirestoreListItem(id, trimmedName, currentQty, currentCat);
+      const senderEmail = firebaseUser?.email || undefined;
+      const senderName = firebaseUser?.displayName || (senderEmail ? senderEmail.split('@')[0] : undefined);
+      const newItemId = await addFirestoreListItem(
+        id,
+        trimmedName,
+        currentQty,
+        currentCat,
+        senderEmail,
+        senderName
+      );
       setItems((prev) => {
         if (prev.some((item) => item.id === newItemId)) return prev;
         const newItem: ShoppingItem = {

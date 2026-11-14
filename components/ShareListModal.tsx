@@ -86,7 +86,8 @@ export function ShareListModal({
 
     setSubmitting(true);
     try {
-      const res = await shareListWithEmail(list.id, trimmed);
+      const senderName = currentUserEmail ? currentUserEmail.split('@')[0] : undefined;
+      const res = await shareListWithEmail(list.id, trimmed, currentUserEmail, senderName);
       setEmailToShare('');
       setFeedback({ type: 'success', message: res.message });
     } catch (err: any) {

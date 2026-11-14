@@ -20,6 +20,7 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { ShoppingList, ShoppingItem, User } from '@/types';
+import { sendExpoPushNotifications } from './notifications';
 
 // Re-export setDoc for auth/sync helpers
 export { setDoc };
@@ -205,7 +206,9 @@ export async function addFirestoreListItem(
   listId: string,
   name: string,
   quantity = 1,
-  category = 'Other'
+  category = 'Other',
+  senderEmail?: string,
+  senderName?: string
 ): Promise<string> {
   const docRef = await addDoc(shoppingItemsCollection, {
     listId,
@@ -215,6 +218,55 @@ export async function addFirestoreListItem(
     isChecked: false,
     createdAt: Date.now(),
   });
+
+  // Notify other members of the list asynchronously
+  (async () => {
+    try {
+      const listSnap = await getDoc(shoppingListDoc(listId));
+      if (!listSnap.exists()) return;
+      const listData = listSnap.data();
+      const allEmails: string[] = [
+        listData.ownerEmail,
+        ...(listData.memberEmails || []),
+      ]
+        .filter(Boolean)
+        .map((e: string) => e.toLowerCase().trim());
+
+      const senderNorm = (senderEmail || '').toLowerCase().trim();
+      const recipientEmails = Array.from(new Set(allEmails)).filter(
+        (e) => e && e !== senderNorm
+      );
+
+      if (recipientEmails.length === 0) return;
+
+      const tokens: string[] = [];
+      for (let i = 0; i < recipientEmails.length; i += 30) {
+        const batch = recipientEmails.slice(i, i + 30);
+        const qRecipients = query(usersCollection, where('email', 'in', batch));
+        const snap = await getDocs(qRecipients);
+        snap.forEach((docSnap) => {
+          const u = docSnap.data();
+          if (u.pushTokens && Array.isArray(u.pushTokens)) {
+            tokens.push(...u.pushTokens);
+          }
+        });
+      }
+
+      if (tokens.length > 0) {
+        const author = senderName || (senderEmail ? senderEmail.split('@')[0] : 'Un miembro');
+        const qtyText = quantity > 1 ? `${quantity}x ` : '';
+        await sendExpoPushNotifications(
+          tokens,
+          listData.name || 'Lista de compras',
+          `${author} añadió ${qtyText}${name.trim()}`,
+          { url: `/list/${listId}` }
+        );
+      }
+    } catch (err) {
+      console.warn('Failed to notify list members of new item:', err);
+    }
+  })();
+
   return docRef.id;
 }
 
@@ -251,7 +303,9 @@ export async function clearCompletedFirestoreListItems(listId: string): Promise<
 // Share list with a user by email
 export async function shareListWithEmail(
   listId: string,
-  targetEmail: string
+  targetEmail: string,
+  senderEmail?: string | null,
+  senderName?: string | null
 ): Promise<{ success: boolean; message: string }> {
   const emailNorm = targetEmail.trim().toLowerCase();
   if (!emailNorm || !emailNorm.includes('@')) {
@@ -272,7 +326,8 @@ export async function shareListWithEmail(
   // Search if user exists in registered users collection
   const qUser = query(usersCollection, where('email', '==', emailNorm), limit(1));
   const userSnap = await getDocs(qUser);
-  const matchedUid = !userSnap.empty ? userSnap.docs[0].id : null;
+  const matchedUser = !userSnap.empty ? userSnap.docs[0] : null;
+  const matchedUid = matchedUser ? matchedUser.id : null;
 
   const updateData: Record<string, any> = {
     memberEmails: arrayUnion(emailNorm),
@@ -284,6 +339,21 @@ export async function shareListWithEmail(
   }
 
   await updateDoc(shoppingListDoc(listId), updateData);
+
+  // Send push notification if the invited user has push tokens registered
+  if (matchedUser) {
+    const userData = matchedUser.data();
+    if (userData.pushTokens && Array.isArray(userData.pushTokens) && userData.pushTokens.length > 0) {
+      const inviter = senderName || senderEmail || 'Alguien';
+      sendExpoPushNotifications(
+        userData.pushTokens,
+        'Lista compartida 📋',
+        `${inviter} te ha invitado a colaborar en "${data.name || 'la lista'}".`,
+        { url: `/list/${listId}` }
+      ).catch((err) => console.warn('Failed to notify invited member:', err));
+    }
+  }
+
   return {
     success: true,
     message: matchedUid

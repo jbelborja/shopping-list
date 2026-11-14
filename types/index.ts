@@ -14,6 +14,7 @@ export interface User {
   email: string;
   photoURL?: string;
   createdAt?: any;
+  pushTokens?: string[];
 }
 
 export interface ShoppingItem {
