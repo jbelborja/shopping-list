@@ -159,7 +159,7 @@ jobs:
           gh release upload latest-build "android/app/build/outputs/apk/release/app-release.apk#shopping-list.apk" --clobber
 
   build-ios:
-    runs-on: macos-14
+    runs-on: macos-15
     if: ${{ inputs.platform == 'ios' || inputs.platform == 'all' }}
     steps:
       - name: Checkout
