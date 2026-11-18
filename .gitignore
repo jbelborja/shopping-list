@@ -30,6 +30,7 @@ ios/
 .env.test
 .env.production
 !.env.example
+GoogleService-Info.plist
 
 # Testing & Coverage
 coverage/
